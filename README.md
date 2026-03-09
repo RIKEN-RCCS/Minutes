@@ -27,8 +27,7 @@ Minutes/
 │   ├── whisper_vad.py     # 主書き起こしスクリプト（Whisper + PyAnnote + VAD）
 │   └── generate_minutes.py # 議事録生成スクリプト（Claude CLI使用）
 ├── data/
-│   ├── input/             # 元のオーディオ/ビデオファイル
-│   └── transcribed/       # Whisper生成文字起こしテキスト（.md）
+│   └── input/             # オーディオ/ビデオファイルおよびWhisper生成文字起こしテキスト（.md）
 └── minutes/               # 最終議事録
     └── YYYY-MM-DD-timestamp-file-md-minutes.md
 ```
@@ -51,17 +50,17 @@ bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 - `ai-l40s` 空きなし・`qc-gh200` 空きあり → GPU指定なしで投入
 - 両方混雑 → `ai-l40s` にデフォルト投入
 
-文字起こし結果は入力ファイルと同名の`.md`ファイルとして`data/transcribed/`に保存されます。
+文字起こし結果は入力ファイルと同名の`.md`ファイルとして`data/input/`に保存されます。
 
 ### 2. 議事録を生成
 
 文字起こしファイルからClaude CLIを使って議事録を生成します：
 
 ```bash
-python scripts/generate_minutes.py data/transcribed/meeting.md
+python scripts/generate_minutes.py data/input/meeting.md
 
 # 出力ディレクトリを指定する場合
-python scripts/generate_minutes.py data/transcribed/meeting.md --output output_dir
+python scripts/generate_minutes.py data/input/meeting.md --output output_dir
 ```
 
 議事録は`minutes/`ディレクトリに自動的に保存されます。

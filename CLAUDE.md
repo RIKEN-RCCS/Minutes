@@ -17,8 +17,7 @@ Minutes/
 │   ├── whisper_vad.py     # 主書き起こしスクリプト（Whisper + PyAnnote + VAD）
 │   └── generate_minutes.py # 議事録生成スクリプト（Claude CLI使用）
 ├── data/                  # 音声データ
-│   ├── input/             # 元のオーディオ/ビデオファイル
-│   └── transcribed/       # Whisper出力（.mdファイル）
+│   └── input/             # オーディオ/ビデオファイルおよびWhisper出力（.mdファイル）
 └── minutes/               # 最終会議記録
     └── YYYY-MM-DD-timestamp-file-md-minutes.md
 ```
@@ -44,11 +43,11 @@ Minutes/
    bash scripts/trans.sh data/input/meeting.mp4 [--skip 30]
    ```
    ログインノードから実行。パーティションを自動選択（ai-l40s優先、次いでqc-gh200）。
-   出力: `data/transcribed/meeting.md`
+   出力: `data/input/meeting.md`（入力ファイルと同じディレクトリに同名で生成）
 
 3. **議事録生成**: 書き起こしからLLMで議事録を生成
    ```bash
-   python scripts/generate_minutes.py data/transcribed/meeting.md
+   python scripts/generate_minutes.py data/input/meeting.md
    ```
    出力: `minutes/YYYY-MM-DD-timestamp-file-md-minutes.md`
 
