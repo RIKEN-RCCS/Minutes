@@ -40,11 +40,12 @@ Minutes/
 オーディオファイルを`data/input/`ディレクトリに配置し、SLURMジョブを提出します：
 
 ```bash
-sbatch scripts/trans.sh data/input/meeting.mp4
+bash scripts/trans.sh data/input/meeting.mp4
 # または冒頭30秒をスキップする場合
-sbatch scripts/trans.sh data/input/meeting.mp4 --skip 30
+bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 ```
 
+パーティションは自動選択されます（ai-l40s → qc-gh200 → ai-l40s）。
 文字起こし結果は入力ファイルと同名の`.md`ファイルとして`data/transcribed/`に保存されます。
 
 ### 2. 議事録を生成

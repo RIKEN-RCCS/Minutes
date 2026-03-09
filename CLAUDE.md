@@ -41,8 +41,9 @@ Minutes/
 1. **入力**: `data/input/`ディレクトリにオーディオ/ビデオファイルを配置
 2. **書き起こし**: SLURMジョブを実行して書き起こしを作成
    ```bash
-   sbatch scripts/trans.sh data/input/meeting.mp4 [--skip 30]
+   bash scripts/trans.sh data/input/meeting.mp4 [--skip 30]
    ```
+   パーティションは自動選択（ai-l40s → qc-gh200 → ai-l40s）。
    出力: `data/transcribed/meeting.md`
 
 3. **議事録生成**: 書き起こしからLLMで議事録を生成
@@ -57,12 +58,13 @@ Minutes/
 
 複数ファイルのジョブを提出：
 ```bash
-sbatch scripts/trans.sh file1.mp4 file2.mp4 [--skip 30]
+bash scripts/trans.sh file1.mp4 file2.mp4 [--skip 30]
 ```
 
 - デフォルト: ファイル全体を処理
 - `--skip N`: ファイル冒頭のN秒をスキップ
 - ファイルを単一のジョブで順次処理
+- パーティションを自動選択: ai-l40s（優先）→ qc-gh200 → ai-l40s（デフォルト）
 
 #### Pythonスクリプトを直接実行
 
