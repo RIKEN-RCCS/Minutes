@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --nodes=1
-#SBATCH --gpus=1
 #SBATCH --time=24:00:00
 
 # 複数ファイルを1ジョブで順次処理する
@@ -18,23 +17,27 @@
 # ============================================================
 if [[ -z "${SLURM_JOB_ID}" ]]; then
 
-  # パーティションに idle/mix ノードが存在するか確認
+  # sinfo で idle/mix ノードが存在するか確認
   has_available_nodes() {
     sinfo -p "$1" --noheader -o "%t" 2>/dev/null | grep -qE "^(idle|mix)$"
   }
 
   if has_available_nodes "ai-l40s"; then
     PARTITION="ai-l40s"
+    EXTRA_OPTS="--gpus=1"
     echo "[INFO] ai-l40s に空きあり → ai-l40s に投入します"
   elif has_available_nodes "qc-gh200"; then
     PARTITION="qc-gh200"
-    echo "[INFO] qc-gh200 に空きあり → qc-gh200 に投入します"
+    EXTRA_OPTS=""
+    echo "[INFO] ai-l40s は空きなし、qc-gh200 に空きあり → qc-gh200 に投入します"
   else
     PARTITION="ai-l40s"
+    EXTRA_OPTS="--gpus=1"
     echo "[INFO] 両パーティションが混雑 → デフォルトの ai-l40s に投入します"
   fi
 
-  sbatch --partition="$PARTITION" "$0" "$@"
+  # shellcheck disable=SC2086
+  sbatch --partition="$PARTITION" $EXTRA_OPTS "$0" "$@"
   exit $?
 fi
 
