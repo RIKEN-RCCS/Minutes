@@ -1,12 +1,6 @@
 # 議事録（機密性高）
 minutes/
-
-# Meeting transcripts and audio (機密性2)
-data/transcribed/*.txt
-data/transcribed/*.md
-data/input/*.m4a
-data/input/*.mp4
-data/input/*.wav
+data/
 
 # Generated summary files
 data/slack_summarize*.md
