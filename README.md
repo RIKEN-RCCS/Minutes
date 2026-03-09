@@ -45,7 +45,12 @@ bash scripts/trans.sh data/input/meeting.mp4
 bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 ```
 
-パーティションは自動選択されます（ai-l40s → qc-gh200 → ai-l40s）。
+**ログインノードから実行してください**（SLURMジョブ内からは実行不可）。
+`sinfo`でパーティションの空き状況を確認し、自動選択します：
+- `ai-l40s` 空きあり → `--gpus=1` 付きで投入
+- `ai-l40s` 空きなし・`qc-gh200` 空きあり → GPU指定なしで投入
+- 両方混雑 → `ai-l40s` にデフォルト投入
+
 文字起こし結果は入力ファイルと同名の`.md`ファイルとして`data/transcribed/`に保存されます。
 
 ### 2. 議事録を生成
@@ -59,7 +64,7 @@ python scripts/generate_minutes.py data/transcribed/meeting.md
 python scripts/generate_minutes.py data/transcribed/meeting.md --output output_dir
 ```
 
-議事録は`minutes/YYYY/`ディレクトリに自動的に保存されます。
+議事録は`minutes/`ディレクトリに自動的に保存されます。
 
 ## プロジェクト背景
 

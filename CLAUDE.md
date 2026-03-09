@@ -43,7 +43,7 @@ Minutes/
    ```bash
    bash scripts/trans.sh data/input/meeting.mp4 [--skip 30]
    ```
-   パーティションは自動選択（ai-l40s → qc-gh200 → ai-l40s）。
+   ログインノードから実行。パーティションを自動選択（ai-l40s優先、次いでqc-gh200）。
    出力: `data/transcribed/meeting.md`
 
 3. **議事録生成**: 書き起こしからLLMで議事録を生成
@@ -56,7 +56,7 @@ Minutes/
 
 #### SLURMクラスターで書き起こしを実行
 
-複数ファイルのジョブを提出：
+**ログインノードから**実行すること（SLURMジョブ内からは不可）：
 ```bash
 bash scripts/trans.sh file1.mp4 file2.mp4 [--skip 30]
 ```
@@ -64,7 +64,10 @@ bash scripts/trans.sh file1.mp4 file2.mp4 [--skip 30]
 - デフォルト: ファイル全体を処理
 - `--skip N`: ファイル冒頭のN秒をスキップ
 - ファイルを単一のジョブで順次処理
-- パーティションを自動選択: ai-l40s（優先）→ qc-gh200 → ai-l40s（デフォルト）
+- パーティションを自動選択（`sinfo`でidle/mixノードを確認）:
+  - `ai-l40s` 空きあり → `--gpus=1` 付きで投入
+  - `ai-l40s` 空きなし・`qc-gh200` 空きあり → GPU指定なしで投入
+  - 両方混雑 → `ai-l40s` にデフォルト投入
 
 #### Pythonスクリプトを直接実行
 
