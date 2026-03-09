@@ -1,6 +1,7 @@
+# 議事録（機密性高）
+minutes/
+
 # Meeting transcripts and audio (機密性2)
-meetings/*.md
-meetings/*.txt
 data/transcribed/*.txt
 data/transcribed/*.md
 data/input/*.m4a
