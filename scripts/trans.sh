@@ -46,6 +46,7 @@ fi
 # ============================================================
 
 WHISPER_VAD=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/ProjectManagement/scripts/whisper_vad.py
+GENERATE_MINUTES=$(dirname "$(realpath "$0")")/generate_minutes.py
 
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
@@ -115,6 +116,17 @@ EOF
 
   if [[ $STATUS -eq 0 ]]; then
     echo "完了: $BASENAME.md"
+
+    echo ""
+    echo "[INFO] 議事録を生成中: $BASENAME.md"
+    MINUTES_DIR=$(dirname "$INPUT_ABS")/../minutes
+    python3 "$GENERATE_MINUTES" "$BASENAME.md" --output "$MINUTES_DIR"
+    if [[ $? -eq 0 ]]; then
+      echo "[INFO] 議事録生成完了"
+    else
+      echo "[WARNING] 議事録生成に失敗しました（書き起こしは保存済み）"
+    fi
+
     SUCCESS=$((SUCCESS + 1))
   else
     echo "失敗 (exit=$STATUS): $INPUT_ABS"

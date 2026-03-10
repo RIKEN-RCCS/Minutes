@@ -38,18 +38,13 @@ Minutes/
 ### 会議記録生成パイプライン
 
 1. **入力**: `data/input/`ディレクトリにオーディオ/ビデオファイルを配置
-2. **書き起こし**: SLURMジョブを実行して書き起こしを作成
+2. **書き起こし・議事録生成**: SLURMジョブを実行（書き起こし完了後、自動で議事録も生成）
    ```bash
    bash scripts/trans.sh data/input/meeting.mp4 [--skip 30]
    ```
    ログインノードから実行。パーティションを自動選択（ai-l40s優先、次いでqc-gh200）。
-   出力: `data/input/meeting.md`（入力ファイルと同じディレクトリに同名で生成）
-
-3. **議事録生成**: 書き起こしからLLMで議事録を生成
-   ```bash
-   python scripts/generate_minutes.py data/input/meeting.md
-   ```
-   出力: `minutes/YYYY-MM-DD-timestamp-file-md-minutes.md`
+   - 書き起こし出力: `data/input/meeting.md`（入力ファイルと同じディレクトリに同名で生成）
+   - 議事録出力: `minutes/YYYY-MM-DD-timestamp-file-md-minutes.md`
 
 ### 使い方
 

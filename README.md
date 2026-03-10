@@ -34,9 +34,7 @@ Minutes/
 
 ## 使い方
 
-### 1. 音声書き起こし
-
-オーディオファイルを`data/input/`ディレクトリに配置し、SLURMジョブを提出します：
+オーディオファイルを`data/input/`ディレクトリに配置し、ログインノードから実行します：
 
 ```bash
 bash scripts/trans.sh data/input/meeting.mp4
@@ -45,25 +43,16 @@ bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 ```
 
 **ログインノードから実行してください**（SLURMジョブ内からは実行不可）。
+書き起こし完了後、自動で議事録も生成されます。
+
 `sinfo`でパーティションの空き状況を確認し、自動選択します：
 - `ai-l40s` 空きあり → `--gpus=1` 付きで投入
 - `ai-l40s` 空きなし・`qc-gh200` 空きあり → GPU指定なしで投入
 - 両方混雑 → `ai-l40s` にデフォルト投入
 
-文字起こし結果は入力ファイルと同名の`.md`ファイルとして`data/input/`に保存されます。
-
-### 2. 議事録を生成
-
-文字起こしファイルからClaude CLIを使って議事録を生成します：
-
-```bash
-python scripts/generate_minutes.py data/input/meeting.md
-
-# 出力ディレクトリを指定する場合
-python scripts/generate_minutes.py data/input/meeting.md --output output_dir
-```
-
-議事録は`minutes/`ディレクトリに自動的に保存されます。
+**出力:**
+- 書き起こし: `data/input/meeting.md`（入力ファイルと同名）
+- 議事録: `minutes/YYYY-MM-DD-timestamp-meeting-md-minutes.md`
 
 ## プロジェクト背景
 
