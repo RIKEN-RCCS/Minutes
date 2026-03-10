@@ -55,10 +55,13 @@ PROMPT_TEMPLATE = """\
 """
 
 
-def call_claude(prompt: str) -> str:
+def call_claude(prompt: str, model: str | None = None) -> str:
     """Claude CLIを呼び出して結果を返す"""
+    cmd = ["claude", "-p", prompt]
+    if model:
+        cmd += ["--model", model]
     result = subprocess.run(
-        ["claude", "-p", prompt],
+        cmd,
         capture_output=True,
         text=True,
     )
@@ -111,7 +114,7 @@ def format_transcript(segments: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
-def generate_minutes(transcript_path: str, output_dir: str) -> str:
+def generate_minutes(transcript_path: str, output_dir: str, model: str | None = None) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する"""
     print(f"[INFO] 文字起こしファイルを読み込み中: {transcript_path}")
     segments = parse_transcript(transcript_path)
@@ -122,8 +125,9 @@ def generate_minutes(transcript_path: str, output_dir: str) -> str:
     transcript_text = format_transcript(segments)
     prompt = PROMPT_TEMPLATE.format(transcript=transcript_text)
 
-    print("[INFO] Claude CLIで議事録を生成中...")
-    minutes_text = call_claude(prompt)
+    model_label = model or "default"
+    print(f"[INFO] Claude CLIで議事録を生成中 (model: {model_label})...")
+    minutes_text = call_claude(prompt, model)
 
     # 出力パスを生成: minutes/YYYY-MM-DD-HHMMSS-<basename>-minutes.md
     now = datetime.now()
@@ -149,6 +153,11 @@ def main() -> int:
         default="minutes",
         help="議事録の出力ディレクトリ（デフォルト: minutes）",
     )
+    parser.add_argument(
+        "--model", "-m",
+        default=None,
+        help="使用するClaudeモデル（例: claude-haiku-4-5-20251001）。省略時はCLIデフォルト",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.transcript):
@@ -156,7 +165,7 @@ def main() -> int:
         return 1
 
     try:
-        output_path = generate_minutes(args.transcript, args.output)
+        output_path = generate_minutes(args.transcript, args.output, args.model)
         print(f"[完了] {output_path}")
         return 0
     except Exception as e:
