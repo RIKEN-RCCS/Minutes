@@ -110,6 +110,17 @@ MODEL_LOCAL = "./whisper-large-v3-ja-final"  # ローカルファインチュー
 - 推測を含めない
 - 確定した発言者名を使用する
 
+## GitHubへのpush
+
+このリポジトリはプライベートリポジトリのため、認証情報をURLに含めてpushする。
+
+```bash
+source ~/.secrets/github_tokens.sh && git push https://hikaru-inoue-cyber:${GITHUB_TOKEN}@github.com/RIKEN-RCCS/Minutes.git
+```
+
+- GitHubユーザー名: `hikaru-inoue-cyber`
+- トークン: `~/.secrets/github_tokens.sh` の `GITHUB_TOKEN` 変数
+
 ## LLM（Claude CLI）
 
 文字起こし結果から議事録を作成するにはClaude CLIを利用する。
