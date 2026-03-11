@@ -121,7 +121,7 @@ EOF
 
     echo ""
     echo "[INFO] 議事録を生成中: $BASENAME.md"
-    MINUTES_DIR=$(dirname "$INPUT_ABS")/../minutes
+    MINUTES_DIR=$(dirname "$INPUT_ABS")/../../minutes
     python3 "$GENERATE_MINUTES" "$BASENAME.md" --output "$MINUTES_DIR"
     if [[ $? -eq 0 ]]; then
       echo "[INFO] 議事録生成完了"
