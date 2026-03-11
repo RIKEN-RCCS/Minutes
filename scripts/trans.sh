@@ -46,7 +46,7 @@ fi
 # ============================================================
 
 WHISPER_VAD=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/ProjectManagement/scripts/whisper_vad.py
-GENERATE_MINUTES=$(dirname "$(realpath "$0")")/generate_minutes.py
+GENERATE_MINUTES=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/Minutes/scripts/generate_minutes.py
 
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
@@ -82,6 +82,8 @@ mkdir -p "$WORKDIR"
 
 SUCCESS=0
 FAIL=0
+
+. ~/.secrets/hf_tokens.sh
 
 for INPUT_FILE in "${FILES[@]}"; do
   INPUT_ABS=$(realpath "$INPUT_FILE")

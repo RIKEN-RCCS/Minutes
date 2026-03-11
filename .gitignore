@@ -1,12 +1,7 @@
 # 議事録（機密性高）
 minutes/
 data/
-GLM-4.7-Flash
-K2-Think
-Kimi-K2-Thinking
-gemma3:12b
-qwen3-coder:30b
-qwen3:8b
+model_compare
 
 # Generated summary files
 data/slack_summarize*.md
