@@ -51,8 +51,10 @@ GENERATE_MINUTES=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/Minutes/scripts/generate_
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
   SIFFILE1=/lvs0/rccs-sdt/hikaru.inoue/cpu_aarch64/singularity/whisper.sif
+  PYTHON3=/home/users/hikaru.inoue/.venv_aarch64/bin/python3
 elif [[ "$ARCH" == "x86_64" ]]; then
   SIFFILE1=/lvs0/rccs-sdt/hikaru.inoue/cpu_amd64/singularity/whisper.sif
+  PYTHON3=/home/users/hikaru.inoue/.venv_x86_64/bin/python3
 else
   echo "Unknown architecture: $ARCH"; exit 1
 fi
@@ -122,7 +124,7 @@ EOF
     echo ""
     echo "[INFO] 議事録を生成中: $BASENAME.md"
     MINUTES_DIR=$(dirname "$INPUT_ABS")/../../minutes
-    python3 "$GENERATE_MINUTES" "$BASENAME.md" --output "$MINUTES_DIR"
+    "$PYTHON3" "$GENERATE_MINUTES" "$BASENAME.md" --output "$MINUTES_DIR"
     if [[ $? -eq 0 ]]; then
       echo "[INFO] 議事録生成完了"
     else
