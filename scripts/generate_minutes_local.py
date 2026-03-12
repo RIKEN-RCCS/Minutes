@@ -39,7 +39,7 @@ import requests
 # パス解決
 # --------------------------------------------------------------------------- #
 SCRIPT_DIR = Path(__file__).resolve().parent
-CLAUDE_MD = SCRIPT_DIR / "CLAUDE.md"
+CLAUDE_MD = SCRIPT_DIR.parent / "CLAUDE.md"
 
 
 # --------------------------------------------------------------------------- #
@@ -61,11 +61,11 @@ PROMPT_TEMPLATE = """\
 
 ## 決定事項
 
-- （会議で確定した事項を箇条書きで記載。なければ「（なし）」）
+- （会議で確定した事項を箇条書きで記載。「〜することに決まった」「〜とする」などの表現を拾うこと。なければ「（なし）」）
 
 ## アクションアイテム
 
-- （担当者・内容を明記したタスクを箇条書きで記載。なければ「（なし）」）
+- （「〜をお願いする」「〜してください」「〜を進める」など担当者が割り当てられたタスクを全て箇条書きで記載。担当者名を必ず明記すること。なければ「（なし）」）
 
 ## 議事内容
 
@@ -203,11 +203,13 @@ def call_local_llm(
     api_key: str,
     timeout: int = 600,
     think: bool = False,
+    max_tokens: int = 32768,
 ) -> str:
     payload: dict = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
+        "max_tokens": max_tokens,
         "chat_template_kwargs": {
             "enable_thinking": think,
             "clear_thinking": False,
@@ -241,15 +243,17 @@ def call_local_llm(
         if not choices:
             continue
         delta = choices[0].get("delta", {})
-        token = delta.get("content") or ""
+        token = delta.get("content") or delta.get("reasoning_content") or ""
         if token:
             content_parts.append(token)
             print(".", end="", flush=True)
     print(" 完了", flush=True)
 
     content = "".join(content_parts)
-    # インライン <think>...</think> が混入する場合に備えて除去
-    return strip_think_blocks(content)
+    print(f"[DEBUG] 生成トークン数（strip前）: {len(content)} chars, think={think}")
+    stripped = strip_think_blocks(content)
+    print(f"[DEBUG] 生成トークン数（strip後）: {len(stripped)} chars")
+    return stripped
 
 
 # --------------------------------------------------------------------------- #
@@ -263,6 +267,7 @@ def generate_minutes(
     api_key: str,
     timeout: int,
     think: bool = False,
+    max_tokens: int = 32768,
 ) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する"""
     print(f"[INFO] 文字起こしファイルを読み込み中: {transcript_path}")
@@ -280,7 +285,7 @@ def generate_minutes(
 
     think_label = "有効" if think else "無効"
     print(f"[INFO] ローカルLLM（{model}）で議事録を生成中... （思考モード: {think_label}）")
-    minutes_text = call_local_llm(prompt, model, base_url, api_key, timeout, think=think)
+    minutes_text = call_local_llm(prompt, model, base_url, api_key, timeout, think=think, max_tokens=max_tokens)
 
     # 出力パスを生成: {output_dir}/YYYY-MM-DD-HHMMSS-<basename>-minutes.md
     now = datetime.now()
@@ -314,6 +319,7 @@ def main() -> int:
     parser.add_argument("--url", default=None, help="ローカルLLMのURL（RIVAULT_URL 環境変数でも可）")
     parser.add_argument("--token", default=None, help="APIトークン（RIVAULT_TOKEN 環境変数でも可）")
     parser.add_argument("--timeout", type=int, default=600, help="LLM呼び出しタイムアウト秒数（デフォルト: 600）")
+    parser.add_argument("--max-tokens", type=int, default=32768, help="最大出力トークン数（デフォルト: 32768）")
     args = parser.parse_args()
 
     if not os.path.exists(args.transcript):
@@ -329,12 +335,13 @@ def main() -> int:
 
     print(f"[INFO] モデル      : {args.model}")
     print(f"[INFO] 思考モード  : {'有効' if args.think else '無効'}")
+    print(f"[INFO] max_tokens  : {args.max_tokens}")
     print(f"[INFO] LLM URL     : {base_url}")
 
     try:
         output_path = generate_minutes(
             args.transcript, args.output, args.model, base_url, api_key, args.timeout,
-            think=args.think,
+            think=args.think, max_tokens=args.max_tokens,
         )
         print(f"[完了] {output_path}")
         return 0
