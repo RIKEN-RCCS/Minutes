@@ -15,10 +15,6 @@ MIN_SPEECH_DURATION_MS = 500 # 250
 MIN_SILENCE_DURATION_MS = 300 # 100
 SPEECH_PAD_MS = 250 # 120
 CHUNK_LENGTH = 30 # time in second
-#MODEL_REMOTE = "openai/whisper-small"
-#MODEL_LOCAL = "./whisper-small-final"
-#MODEL_REMOTE = "kotoba-tech/kotoba-whisper-v2.2"
-#MODEL_REMOTE = "openai/whisper-large-v2"
 MODEL_REMOTE = "openai/whisper-large-v3"
 MODEL_LOCAL = "./whisper-large-v3-ja-final"
 
@@ -28,9 +24,6 @@ MAX_NEW_TOKENS = 440
 REPETITION_PENALTY = 1.2
 NO_REPEAT_NGRAM_SIZE = 3
 
-#INITIAL_PROMPT="以下は日本語の会議録です。話者の発言を正確に書き起こしてください。"
-#INITIAL_PROMPT="以下は富岳NEXT開発プロジェクトの日本語の会議録です。話者の発言を正確に書き起こしてください。"
-#INITIAL_PROMPT="以下は富岳NEXT開発プロジェクトの日本語の会議録です。主にベンチマークフレームワークとしてBenchKitやBenchparkを活用する予定です。話者の発言を正確に書き起こしてください。"
 INITIAL_PROMPT = (
     "以下は富岳NEXT開発プロジェクトの日本語の会議録です。"
     "固有名詞：理化学研究所、富岳、富士通、NVIDIA、R-CCS、BenchKit、Benchpark、"

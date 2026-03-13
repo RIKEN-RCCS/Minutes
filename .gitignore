@@ -2,6 +2,7 @@
 minutes/
 data/
 model_compare
+docs/project.md
 
 # Generated summary files
 data/slack_summarize*.md
