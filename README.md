@@ -9,7 +9,7 @@
 ```
 オーディオ/ビデオ
     ↓
-[whisper_vad.py]（SLURMジョブ）
+[whisper_vad.py]
     ↓
 文字起こしテキスト（発言者識別付き）
     ↓
@@ -38,7 +38,7 @@ Minutes/
 
 * docs/project.mdを用意し、プロジェクトに関する概要、参加者、固有の用語などをMarkdown形式で記述してください。Claude CLIで文字起こしテキストを要約する際に効果を発揮します。
 
-* オーディオファイルを`data/input/`ディレクトリに配置し、ログインノードから実行します：
+* オーディオファイルを`data/input/`ディレクトリに配置し、R-CCS Cloudのログインノードから実行します：
 
 ```bash
 bash scripts/trans.sh data/input/meeting.mp4
@@ -46,7 +46,7 @@ bash scripts/trans.sh data/input/meeting.mp4
 bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 ```
 
-**ログインノードから実行してください**（SLURMジョブ内からは実行不可）。
+**R-CCS Cloudのログインノードから実行することで Slurm のバッチジョブとして実行されます**
 書き起こし完了後、自動で議事録も生成されます。
 
 `sinfo`でパーティションの空き状況を確認し、自動選択します：
@@ -58,7 +58,7 @@ bash scripts/trans.sh data/input/meeting.mp4 --skip 30
 - 書き起こし: `data/input/meeting.md`（入力ファイルと同名）
 - 議事録: `minutes/YYYY-MM-DD-timestamp-meeting-md-minutes.md`
 
-## ローカルLLMによる議事録生成（generate_minutes_local.py）
+## [参考]ローカルLLMによる議事録生成（generate_minutes_local.py）
 
 Claude CLIが使えない環境向けに、OpenAI互換APIを持つローカルLLMで議事録を生成するスクリプトも用意しています。
 
