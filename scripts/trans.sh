@@ -12,6 +12,11 @@
 # パーティション選択: ai-l40s に空きがあれば優先、次に qc-gh200、
 # どちらも混雑していれば ai-l40s に投入する。
 
+# スクリプト自身の絶対パスからリポジトリ内パスを解決する
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+WHISPER_VAD="$SCRIPT_DIR/whisper_vad.py"
+GENERATE_MINUTES="$SCRIPT_DIR/generate_minutes.py"
+
 # ============================================================
 # 投入モード: SLURM外（ログインノード等）から実行された場合
 # ============================================================
@@ -36,17 +41,15 @@ if [[ -z "${SLURM_JOB_ID}" ]]; then
     echo "[INFO] 両パーティションが混雑 → デフォルトの ai-l40s に投入します"
   fi
 
+  # sbatch には絶対パスを渡す（ジョブ実行時のカレントディレクトリに依存しないよう）
   # shellcheck disable=SC2086
-  sbatch --partition="$PARTITION" $EXTRA_OPTS "$0" "$@"
+  sbatch --partition="$PARTITION" $EXTRA_OPTS "$SCRIPT_DIR/trans.sh" "$@"
   exit $?
 fi
 
 # ============================================================
 # ジョブ実行モード: SLURM ジョブとして実行された場合
 # ============================================================
-
-WHISPER_VAD=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/ProjectManagement/scripts/whisper_vad.py
-GENERATE_MINUTES=/lvs0/dne1/rccs-nghpcadu/hikaru.inoue/Minutes/scripts/generate_minutes.py
 
 ARCH=$(uname -m)
 if [[ "$ARCH" == "aarch64" ]]; then
