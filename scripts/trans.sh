@@ -13,7 +13,10 @@
 # どちらも混雑していれば ai-l40s に投入する。
 
 # スクリプト自身の絶対パスからリポジトリ内パスを解決する
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# sbatch はスクリプトをスプールディレクトリにコピーして実行するため、
+# ジョブ実行時の $0 はスプールパスになる。
+# 回避策: 投入時に --export で SCRIPT_DIR を渡し、ジョブ側ではそれを優先使用する。
+SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 WHISPER_VAD="$SCRIPT_DIR/whisper_vad.py"
 GENERATE_MINUTES="$SCRIPT_DIR/generate_minutes.py"
 
@@ -41,9 +44,13 @@ if [[ -z "${SLURM_JOB_ID}" ]]; then
     echo "[INFO] 両パーティションが混雑 → デフォルトの ai-l40s に投入します"
   fi
 
-  # sbatch には絶対パスを渡す（ジョブ実行時のカレントディレクトリに依存しないよう）
+  # sbatch には絶対パスを渡す。
+  # ジョブ実行時に $0 がスプールパスになる問題を回避するため、
+  # --export で SCRIPT_DIR を環境変数としてジョブに引き渡す。
   # shellcheck disable=SC2086
-  sbatch --partition="$PARTITION" $EXTRA_OPTS "$SCRIPT_DIR/trans.sh" "$@"
+  sbatch --partition="$PARTITION" $EXTRA_OPTS \
+    --export=ALL,SCRIPT_DIR="$SCRIPT_DIR" \
+    "$SCRIPT_DIR/trans.sh" "$@"
   exit $?
 fi
 
