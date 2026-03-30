@@ -48,54 +48,85 @@ PROJECT_MD = REPO_ROOT / "docs" / "project.md"
 # プロンプトテンプレート
 # --------------------------------------------------------------------------- #
 PROMPT_TEMPLATE = """\
-以下の会議の文字起こしテキストから、構造化された議事録を作成してください。
-文字起こしテキストを冒頭から末尾まで通読してから書き始め、すべてのセクションを完全に書き終えてください。
+以下の会議の文字起こしテキストから、2ステップで議事録を作成してください。
 
-## 話者ラベルの実名対応
+---
+
+## ステップ1: 議題スキャン
+
+文字起こしの全セグメントを先頭から末尾まで確認し、大きな話題の転換点を記録してください。
+細かい話題は関連する上位議題にまとめ、**6〜8個の議題ブロック**に整理してください。
+
+[議題スキャン]
+- [HH:MM:SS] （議題名）
+- [HH:MM:SS] （議題名）
+（末尾まで）
+[/議題スキャン]
+
+---
+
+## ステップ2: 議事録の作成
+
+ステップ1でリストアップした議題ブロックを漏れなく反映した議事録を、以下のルールとフォーマットで作成してください。
+
+### 話者ラベルの実名対応
 
 文字起こし中の SPEAKER_XX は音声認識による仮ラベルです。
 文字起こしテキスト中で他の参加者から「○○さん」と名前を呼ばれているか、自己紹介が確認できる場合のみ実名を使用してください。
 それ以外は SPEAKER_XX のまま記載し、メンバーリストからの憶測による割り当ては行わないでください。
+**SPEAKER_XX と実名を並記することは禁止**（例：「小林 千草 (SPEAKER_04)」は不可）。
 
-## 議事録作成ルール
+### 議事録作成ルール
 
 - 文字起こしテキストの内容に忠実に従い、推測・創作を含めない
 - Whisperの書き起こし誤認識による不自然な表現は自然な日本語に修正してよいが、事実は変えない
 - プロジェクト固有の用語は「プロジェクト文脈」の用語集を参照して正しく表記する
-- 出力に含まれるすべての人名は「プロジェクト文脈」のメンバーリストに存在する名前のみ使用すること。リストに存在しない名前（例：「道頌さん」「ダルセさん」等）は音声認識の誤認識であるため、絶対に出力に含めないこと
-- 必ず以下のフォーマットのみで出力すること。フォーマット外の説明・コメントは不要
+- 出力に含まれる人名はすべて「プロジェクト文脈」のメンバーリストに記載された正式名称を使用すること。文字起こし中に聞き取り違いで現れる名前（例：「ナルセさん」→「成瀬」、「道頌さん」「ダルセさん」等）はメンバーリストで照合して正式名称に置き換えるか、照合できない場合は出力に含めないこと
+- 日付・期限は文字起こしに出てくる表現のみ使うこと（「今週末」「月曜日」「26日」等）。文字起こしに月・年の記載がない場合に「3月」「2026年」等を補完することは厳禁。数字だけの日付（「26日」）はそのまま「26日」と記載し、「3月26日」に拡張しないこと
+- 出力は `# 議事録` で始め、`## 議事内容` の最後の `### ` セクション本文の最後の文で終えること。「以上が」「以上、」「上記が」等の締めくくり文は書かないこと
 
-## 出力フォーマット
+### 出力フォーマット（この構造を厳守すること）
 
-### セクション1: 決定事項
+以下の骨格の順番・見出し記号を変えずに出力してください。
 
-まず「# 議事録」「## 決定事項」の見出しを書いてください。
-次に、会議中に合意・確認された事項を箇条書きで列挙してください。
-決定事項とは、「はい、わかりました」「そうしましょう」「〜にします」「〜で進める」など、参加者間で同意が成立した方針・ルール・日程・役割分担等のことです。
-各項目は「- 決定した内容 [出典: 議論の要約]」の形式で書いてください。出典は文字起こしを直接引用せず、必ず自分の言葉で30字以内に要約してください。
-なければ「（なし）」と書いてください。
+```
+# 議事録
 
-### セクション2: アクションアイテム
+## 決定事項
 
-「## アクションアイテム」の見出しを書き、担当者が割り当てられたすべてのタスクを表形式で記載してください。
-「〜をお願いする」「〜してください」「〜を確認する」「〜を進める」など、明示的に担当者が指名されたタスクを抽出してください。
-会議の全体（インプット管理、NVIDIAスケジュール、AI性能目標の担当確認、報告書作成、エフォート・出張申請など）を通じたタスクを漏れなく記載してください。
-表のヘッダー行は「| 担当者 | タスク内容 | 期限 |」です。
-なければ「（なし）」と書いてください。
+- （決定事項1） [出典: 30字以内]
+- （決定事項2） [出典: 30字以内]
 
-### セクション3: 議事内容
+## アクションアイテム
 
-「## 議事内容」の見出しを書き、議題ごとに節を立てて記述してください。
-各節は以下の形式（アスタリスク2つで挟んだ太字）の見出しで始め、続けてその議題の議論内容を150〜400字で記述してください。
-`###` などのMarkdown見出し記号や、アスタリスク1つ（`*イタリック*`）は使わないこと。
+| 担当者 | タスク内容 | 期限 |
+|---|---|---|
+| （名前） | （タスク） | （期限または「未定」） |
 
-  **ベンチマーク用インプットリポジトリの展開方針**
+## 議事内容
 
-  （議論内容）
-記述内容：誰が何を提案・説明し、どのような意見が交わされ、どのような結論・方針になったか。固有名詞・数値・日付は正確に保持すること。
-一つの節に複数の異なる話題を詰め込まず、話題転換ごとに新しい節を立ててください。
-この会議には少なくとも以下の議題があります：インプット管理方針、NVIDIAとのベンチマークスケジュール、AI性能目標の推定担当、報告書作成の進捗、エフォート・出張申請について。
-文字起こしの冒頭から終わりまで、すべての議題を網羅してください（途中で省略しないこと）。
+### （議題ブロック1のタイトル）
+
+（300〜600字の議論内容）
+
+### （議題ブロック2のタイトル）
+
+（300〜600字の議論内容）
+```
+
+各セクションの記載ルール:
+
+**## 決定事項**: 参加者間で同意が成立した事項（「そうしましょう」「〜で進める」「〜にします」等）を箇条書き。なければ「（なし）」。
+
+**## アクションアイテム**: 文字起こし全体から、個人・グループへのタスク依頼をすべて漏れなく抽出して表に記載。抽出対象: 「〜をお願いします」「〜してください」「〜を確認します」「〜を連絡します」「〜を進めます」「〜をやっておきます」「〜に依頼します」等。担当者が「各担当者」「みなさん」等の場合もそのまま記載。期限は文字起こしの表現のまま。不明は「（未定）」。なければ「（なし）」。
+
+**## 議事内容**: ステップ1の議題ブロック（6〜8節）ごとに `### ` 見出しで節を立て、各節に**必ず300字以上**（目標400〜600字）で以下を記述（300字未満の場合は議論の詳細を補完すること）:
+- 誰が（確認できた実名またはSPEAKER_XX）何を提案・報告・質問したか
+- どのような意見・懸念・数値・条件が挙げられたか
+- どのような結論・方針・継続課題になったか
+- 固有名詞・数値・日付・バージョン番号は正確に保持
+
+ステップ1の全ブロックを記述し終えたら出力を終了してください。
 
 ---
 
@@ -226,6 +257,92 @@ def format_transcript(segments: list[dict]) -> str:
     return "\n\n".join(lines)
 
 
+def chunk_transcript(segments: list[dict], chunk_duration_sec: int = 1800) -> list[list[dict]]:
+    """セグメントリストを時間ウィンドウごとに分割する"""
+    if not segments:
+        return []
+    start_time = segments[0]["start"]
+    chunks: list[list[dict]] = []
+    current: list[dict] = []
+    for seg in segments:
+        if seg["start"] >= start_time + chunk_duration_sec * (len(chunks) + 1):
+            if current:
+                chunks.append(current)
+                current = []
+        current.append(seg)
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+# --------------------------------------------------------------------------- #
+# チャンク抽出プロンプト（マルチステージ Stage 2 用）
+# --------------------------------------------------------------------------- #
+CHUNK_EXTRACTION_TEMPLATE = """\
+以下は会議の一部分（第{chunk_idx}/{total_chunks}部、時刻 {time_range}）の文字起こしです。
+「プロジェクト文脈」のメンバーリストと用語集を参照しながら、この部分から以下を箇条書きで簡潔に抽出してください。
+
+抽出ルール:
+- 文字起こしの内容にのみ基づいて抽出すること（推測・創作禁止）
+- 日付・期限は文字起こしに出てくる表現のまま記載すること
+- 人名はメンバーリストに存在する名前のみ使用し、リストにない名前（音声認識誤認識）は「SPEAKER_XX」で代替すること
+
+## 主要な議論ポイント
+（この部分で扱われた主なトピックと内容を3〜8点）
+- ...
+
+## 仮の決定事項
+（参加者間で同意が成立したと思われる事項のみ。なければ「なし」）
+- ...
+
+## 仮のアクションアイテム
+（担当者が明示されたタスク。なければ「なし」）
+- [担当者] タスク内容（期限：xx）
+
+## 話者確認
+（「○○さん」と呼ばれるなど実名が確認できた SPEAKER_XX のみ記載。なければ「なし」）
+- SPEAKER_XX = 名前
+
+---
+
+## プロジェクト文脈
+
+{claude_md_context}
+
+---
+
+## 文字起こし（{time_range}）
+
+{chunk_text}
+"""
+
+
+def extract_from_chunk(
+    chunk_text: str,
+    chunk_idx: int,
+    total_chunks: int,
+    time_range: str,
+    claude_md_context: str,
+    model: str,
+    base_url: str,
+    api_key: str,
+    timeout: int,
+) -> str:
+    """1チャンクから事実を抽出する（Stage 2）"""
+    prompt = CHUNK_EXTRACTION_TEMPLATE.format(
+        chunk_idx=chunk_idx,
+        total_chunks=total_chunks,
+        time_range=time_range,
+        claude_md_context=claude_md_context,
+        chunk_text=chunk_text,
+    )
+    result = call_local_llm(
+        prompt, model, base_url, api_key, timeout,
+        think=False, max_tokens=2048,
+    )
+    return result
+
+
 # --------------------------------------------------------------------------- #
 # ローカルLLM 呼び出し（requests ライブラリ使用・ストリーミング）
 # --------------------------------------------------------------------------- #
@@ -241,13 +358,14 @@ def call_local_llm(
     api_key: str,
     timeout: int = 600,
     think: bool = False,
-    max_tokens: int = 32768,
+    max_tokens: int = 8192,
 ) -> str:
     payload: dict = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
         "max_tokens": max_tokens,
+        "temperature": 0.8,
         "chat_template_kwargs": {
             "enable_thinking": think,
             "clear_thinking": False,
@@ -288,9 +406,9 @@ def call_local_llm(
     print(" 完了", flush=True)
 
     content = "".join(content_parts)
-    print(f"[DEBUG] 生成トークン数（strip前）: {len(content)} chars, think={think}")
+    print(f"[INFO] 生成トークン数（strip前）: {len(content)} chars, think={think}")
     stripped = strip_think_blocks(content)
-    print(f"[DEBUG] 生成トークン数（strip後）: {len(stripped)} chars")
+    print(f"[INFO] 生成トークン数（strip後）: {len(stripped)} chars")
     return stripped
 
 
@@ -305,7 +423,9 @@ def generate_minutes(
     api_key: str,
     timeout: int,
     think: bool = False,
-    max_tokens: int = 32768,
+    max_tokens: int = 8192,
+    multi_stage: bool = False,
+    chunk_minutes: int = 30,
 ) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する"""
     print(f"[INFO] 文字起こしファイルを読み込み中: {transcript_path}")
@@ -314,16 +434,72 @@ def generate_minutes(
         raise ValueError(f"文字起こしセグメントが見つかりません: {transcript_path}")
     print(f"[INFO] {len(segments)} セグメントを検出")
 
-    transcript_text = format_transcript(segments)
     claude_md_context = load_claude_md_context()
-    prompt = PROMPT_TEMPLATE.format(
-        claude_md_context=claude_md_context,
-        transcript=transcript_text,
-    )
 
-    think_label = "有効" if think else "無効"
-    print(f"[INFO] ローカルLLM（{model}）で議事録を生成中... （思考モード: {think_label}）")
-    minutes_text = call_local_llm(prompt, model, base_url, api_key, timeout, think=think, max_tokens=max_tokens)
+    if multi_stage:
+        # ------------------------------------------------------------------ #
+        # マルチステージ: 分割→抽出→統合
+        # ------------------------------------------------------------------ #
+        chunk_duration_sec = chunk_minutes * 60
+        chunks = chunk_transcript(segments, chunk_duration_sec)
+        total = len(chunks)
+        print(f"[INFO] マルチステージモード: {total} チャンクに分割（各約 {chunk_minutes} 分）")
+
+        extractions: list[str] = []
+        for i, chunk_segs in enumerate(chunks, 1):
+            chunk_text = format_transcript(chunk_segs)
+            h0, r0 = divmod(chunk_segs[0]["start"], 3600)
+            m0, s0 = divmod(r0, 60)
+            h1, r1 = divmod(chunk_segs[-1]["end"], 3600)
+            m1, s1 = divmod(r1, 60)
+            time_range = f"{h0:02d}:{m0:02d}:{s0:02d}〜{h1:02d}:{m1:02d}:{s1:02d}"
+            print(f"[INFO] チャンク {i}/{total} を抽出中... ({time_range})")
+            extraction = extract_from_chunk(
+                chunk_text, i, total, time_range,
+                claude_md_context, model, base_url, api_key, timeout,
+            )
+            extractions.append(f"=== 第{i}部（{time_range}）===\n{extraction}")
+            print(f"[INFO] チャンク {i}/{total} 抽出完了（{len(extraction)} 字）")
+
+        combined = "\n\n".join(extractions)
+        print(f"[INFO] 全チャンク抽出完了。統合テキスト: {len(combined)} 字")
+        print(f"[INFO] ローカルLLM（{model}）で議事録を統合生成中...")
+        prompt = PROMPT_TEMPLATE.format(
+            claude_md_context=claude_md_context,
+            transcript=combined,
+        )
+        minutes_text = call_local_llm(
+            prompt, model, base_url, api_key, timeout,
+            think=think, max_tokens=max_tokens,
+        )
+    else:
+        # ------------------------------------------------------------------ #
+        # 単一パス（従来の動作）
+        # ------------------------------------------------------------------ #
+        transcript_text = format_transcript(segments)
+        prompt = PROMPT_TEMPLATE.format(
+            claude_md_context=claude_md_context,
+            transcript=transcript_text,
+        )
+        think_label = "有効" if think else "無効"
+        print(f"[INFO] ローカルLLM（{model}）で議事録を生成中... （思考モード: {think_label}）")
+        minutes_text = call_local_llm(
+            prompt, model, base_url, api_key, timeout,
+            think=think, max_tokens=max_tokens,
+        )
+
+    # ステップ1スクラッチパッドを除去: "# 議事録\n" (単独行) 以降のみを保持
+    for marker in ("# 議事録\n\n", "# 議事録\n"):
+        idx = minutes_text.find(marker)
+        if idx >= 0:
+            if idx > 0:
+                print(f"[INFO] スクラッチパッド除去: 先頭 {idx} 文字を削除")
+                minutes_text = minutes_text[idx:]
+            break
+    # モデルが "# 議事録" を重複出力する場合に除去
+    minutes_text = re.sub(r'^(# 議事録\s*\n+){2,}', '# 議事録\n\n', minutes_text)
+    # 末尾の締めくくりコメントを除去（「以上」「以下」「上記」で始まる行以降）
+    minutes_text = re.sub(r'\n+(?:以上|以下|上記)[^\n]*$', '', minutes_text.rstrip())
 
     # 出力パスを生成: {output_dir}/YYYY-MM-DD-HHMMSS-<basename>-minutes.md
     now = datetime.now()
@@ -357,7 +533,9 @@ def main() -> int:
     parser.add_argument("--url", default=None, help="ローカルLLMのURL（RIVAULT_URL 環境変数でも可）")
     parser.add_argument("--token", default=None, help="APIトークン（RIVAULT_TOKEN 環境変数でも可）")
     parser.add_argument("--timeout", type=int, default=600, help="LLM呼び出しタイムアウト秒数（デフォルト: 600）")
-    parser.add_argument("--max-tokens", type=int, default=32768, help="最大出力トークン数（デフォルト: 32768）")
+    parser.add_argument("--max-tokens", type=int, default=8192, help="最大出力トークン数（デフォルト: 8192）")
+    parser.add_argument("--multi-stage", action="store_true", help="マルチステージ（分割→抽出→統合）モードを有効化")
+    parser.add_argument("--chunk-minutes", type=int, default=30, help="マルチステージ時のチャンクサイズ（分単位、デフォルト: 30）")
     args = parser.parse_args()
 
     if not os.path.exists(args.transcript):
@@ -374,12 +552,16 @@ def main() -> int:
     print(f"[INFO] モデル      : {args.model}")
     print(f"[INFO] 思考モード  : {'有効' if args.think else '無効'}")
     print(f"[INFO] max_tokens  : {args.max_tokens}")
+    print(f"[INFO] マルチステージ: {'有効' if args.multi_stage else '無効'}")
+    if args.multi_stage:
+        print(f"[INFO] チャンク    : {args.chunk_minutes} 分")
     print(f"[INFO] LLM URL     : {base_url}")
 
     try:
         output_path = generate_minutes(
             args.transcript, args.output, args.model, base_url, api_key, args.timeout,
             think=args.think, max_tokens=args.max_tokens,
+            multi_stage=args.multi_stage, chunk_minutes=args.chunk_minutes,
         )
         print(f"[完了] {output_path}")
         return 0
