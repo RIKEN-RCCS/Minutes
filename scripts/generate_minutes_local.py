@@ -48,98 +48,37 @@ PROJECT_MD = REPO_ROOT / "docs" / "project.md"
 # プロンプトテンプレート
 # --------------------------------------------------------------------------- #
 PROMPT_TEMPLATE = """\
-以下の会議の文字起こしテキストから、2ステップで議事録を作成してください。
+You are writing the 議事内容 (meeting content) section of Japanese meeting minutes.
 
----
+Below are sequential summaries of each segment of the meeting.
+Organize them into 6-8 thematic sections.
 
-## ステップ1: 議題スキャン
+RULES:
+1. Output must be entirely in Japanese
+2. Focus on WHAT was discussed — topics, proposals, numbers, conclusions
+3. Each section: 400-600 Japanese characters of continuous prose
+4. Section titles: concise Japanese noun phrases (15 characters or less)
+5. NO speaker attribution ("〜さんが言った", "SPEAKER_XX が" etc.)
+6. Use correct project terminology from the reference below
+7. Preserve exact numbers, dates as written in the summaries, and technical terms
+8. Begin output immediately with "## 議事内容" — no preamble, no other sections
+CRITICAL: The strings "SPEAKER_00", "SPEAKER_01", "SPEAKER_02", etc. must NEVER appear in your output.
 
-文字起こしの全セグメントを先頭から末尾まで確認し、大きな話題の転換点を記録してください。
-細かい話題は関連する上位議題にまとめつつ、**必ず6〜8個の議題ブロック**に整理してください。ブロックが5個以下になる場合は大きなトピックをさらに細分化してください。
-
-[議題スキャン]
-- [HH:MM:SS] （議題名）
-- [HH:MM:SS] （議題名）
-（末尾まで）
-[/議題スキャン]
-
----
-
-## ステップ2: 議事録の作成
-
-ステップ1でリストアップした議題ブロックを漏れなく反映した議事録を、以下のルールとフォーマットで作成してください。
-
-### 話者ラベルの実名対応
-
-文字起こし中の SPEAKER_XX は音声認識による仮ラベルです。
-文字起こしテキスト中で他の参加者から「○○さん」と名前を呼ばれているか、自己紹介が確認できる場合のみ実名を使用してください。
-それ以外は SPEAKER_XX のまま記載し、メンバーリストからの憶測による割り当ては行わないでください。
-**SPEAKER_XX と実名を並記することは禁止**（例：「小林 千草 (SPEAKER_04)」は不可）。
-
-入力テキスト（チャンク抽出結果）中に「ナルセさん」「ダルセさん」「道頌さん」等の非公式な呼称や音声認識誤りが含まれている場合、メンバーリストで照合して正式名称に置き換えること（例:「ナルセさん」→「成瀬 彰」）。照合できない場合は出力に含めないこと。
-
-### 議事録作成ルール
-
-- 文字起こしテキストの内容に忠実に従い、推測・創作を含めない
-- Whisperの書き起こし誤認識による不自然な表現は自然な日本語に修正してよいが、事実は変えない
-- プロジェクト固有の用語は「プロジェクト文脈」の用語集を参照して正しく表記する
-- 出力に含まれる人名はすべて「プロジェクト文脈」のメンバーリストに記載された正式名称を使用すること
-- 日付・期限は文字起こしに出てくる表現のみ使うこと（「今週末」「月曜日」「26日」等）。文字起こしに月・年の記載がない場合に「3月」「2026年」等を補完することは厳禁。数字だけの日付（「26日」）はそのまま「26日」と記載し、「3月26日」に拡張しないこと
-- 出力は `# 議事録` で始め、`## 議事内容` の最後の `### ` セクション本文の最後の文で終えること。「以上が」「以上、」「上記が」等の締めくくり文は書かないこと
-
-### 出力フォーマット（この構造を厳守すること）
-
-以下の骨格の順番・見出し記号を変えずに出力してください。
-
-```
-# 議事録
-
-## 決定事項
-
-- （決定事項1） [出典: 30字以内]
-- （決定事項2） [出典: 30字以内]
-
-## アクションアイテム
-
-| 担当者 | タスク内容 | 期限 |
-|---|---|---|
-| （名前） | （タスク） | （期限または「未定」） |
-
+Output format:
 ## 議事内容
 
-### （議題ブロック1のタイトル）
+### （タイトル）
+（300-500字）
 
-（300〜600字の議論内容）
+### （タイトル）
+（300-500字）
 
-### （議題ブロック2のタイトル）
+(6-8 sections total, covering the entire meeting)
 
-（300〜600字の議論内容）
-```
-
-各セクションの記載ルール:
-
-**## 決定事項**: 参加者間で同意が成立した事項（「そうしましょう」「〜で進める」「〜にします」等）を箇条書き。なければ「（なし）」。
-
-**## アクションアイテム**: 文字起こし全体から、個人・グループへのタスク依頼をすべて漏れなく抽出して表に記載。抽出対象: 「〜をお願いします」「〜してください」「〜を確認します」「〜を連絡します」「〜を進めます」「〜をやっておきます」「〜に依頼します」等。担当者が「各担当者」「みなさん」等の場合もそのまま記載。期限は文字起こしの表現のまま。不明は「（未定）」。なければ「（なし）」。
-
-**## 議事内容**: ステップ1の議題ブロック（**必ず6節以上、目標6〜8節**）ごとに `### ` 見出しで節を立てること。節が5節以下になる場合は大きな議題をサブトピックに分割して節を増やすこと。各節に**必ず300字以上**（目標400〜600字）で以下を記述（300字未満の場合は議論の詳細を補完すること）:
-- 誰が（確認できた実名またはSPEAKER_XX）何を提案・報告・質問したか
-- どのような意見・懸念・数値・条件が挙げられたか
-- どのような結論・方針・継続課題になったか
-- 固有名詞・数値・日付・バージョン番号は正確に保持
-
-ステップ1の全ブロックを記述し終えたら出力を終了してください。
-
----
-
-## プロジェクト文脈
-
+## Project Terminology Reference
 {claude_md_context}
 
----
-
-## 文字起こしテキスト
-
+## Meeting Segment Summaries
 {transcript}
 """
 
@@ -281,52 +220,29 @@ def chunk_transcript(segments: list[dict], chunk_duration_sec: int = 1800) -> li
 # チャンク抽出プロンプト（マルチステージ Stage 2 用）
 # --------------------------------------------------------------------------- #
 CHUNK_EXTRACTION_TEMPLATE = """\
-以下は会議の一部分（第{chunk_idx}/{total_chunks}部、時刻 {time_range}）の文字起こしです。
-「プロジェクト文脈」のメンバーリストと用語集を参照しながら、この部分から以下を箇条書きで簡潔に抽出してください。
+You are processing part {chunk_idx} of {total_chunks} of a Japanese meeting transcript (time: {time_range}).
 
-## 抽出ルール
+The transcript was produced by Whisper ASR and may contain misrecognized words,
+unnatural phrasing, and broken sentences, especially for technical terms and proper nouns.
 
-### 日付・期限
-- 文字起こしに出てくる表現のまま記載すること
-- 「26日」は「26日」のまま記載し、「3月26日」「2月26日」等に拡張しないこと
+Your task: Write a detailed Japanese prose summary of everything discussed in this segment.
 
-### 人名の処理（厳守）
-- 文字起こし中で「○○さん」「○○くん」等と呼ばれた名前は、**必ずプロジェクト文脈のメンバーリストで照合**すること
-  - 照合できた場合: メンバーリストの正式名称を使用（例: 「ナルセさん」→「成瀬 彰」、「竹本さん」→「竹本 祐介」）
-  - 照合できない場合: その名前を出力に含めず「SPEAKER_XX」で代替すること
-- 発言者の帰属は「○○さんが〜しました」等の明示的な文脈がある場合のみ記載し、推測で帰属させないこと
-- 発言者が不明確な場合は「SPEAKER_XX が〜」または帰属なしで内容のみ記載すること
+RULES:
+- Use the Project Terminology below to correct Whisper ASR misrecognitions
+  (e.g. katakana approximations of English terms should be restored to their correct form)
+- Cover ALL topics mentioned: decisions, numbers, proposals, concerns, and action items
+- Write in natural Japanese WITHOUT speaker attribution or "SPEAKER_XX" references
+- Do NOT add content not present in the transcript
+- Output Japanese prose only (no bullet points, no headers)
+CRITICAL: Never write "SPEAKER_00", "SPEAKER_01", "SPEAKER_02" or any "SPEAKER_" token in the output.
 
-### その他
-- 文字起こしの内容にのみ基づいて抽出すること（推測・創作禁止）
-
-## 主要な議論ポイント
-（この部分で扱われた主なトピックを箇条書きで5〜8点。各50字以内）
-- ...
-
-## 仮の決定事項
-（参加者間で合意が成立した事項のみ。なければ「なし」）
-- ...
-
-## 仮のアクションアイテム
-（「〜をお願いします」「〜してください」「〜を確認します」「〜に依頼します」等、担当者が明示されたタスクをすべて抽出）
-- [担当者] タスク内容（期限：xx日）
-
-## 話者確認
-（「○○さん」等で実名確認できた SPEAKER_XX のみ。なければ「なし」）
-- SPEAKER_XX = 名前
-
----
-
-## プロジェクト文脈
-
+## Project Terminology
 {claude_md_context}
 
----
-
-## 文字起こし（{time_range}）
-
+## Transcript ({time_range})
 {chunk_text}
+
+Write a thorough Japanese prose summary (600-800 characters):
 """
 
 
@@ -340,7 +256,9 @@ def extract_from_chunk(
     base_url: str,
     api_key: str,
     timeout: int,
+    think: bool = False,
     no_stream: bool = False,
+    no_chat_template_kwargs: bool = False,
 ) -> str:
     """1チャンクから事実を抽出する（Stage 2）"""
     prompt = CHUNK_EXTRACTION_TEMPLATE.format(
@@ -350,14 +268,13 @@ def extract_from_chunk(
         claude_md_context=claude_md_context,
         chunk_text=chunk_text,
     )
-    system = (
-        "あなたは会議議事録の補助AIです。"
-        "必ず日本語のみで回答してください。英語での説明・分析・推論は不要です。"
-        "指定された出力フォーマットに従い、箇条書きで簡潔に出力してください。"
-    )
+    system = "You are a Japanese meeting minutes assistant. Output Japanese prose only, no bullet points."
+    # thinking モード時は思考トークン分を見込んで max_tokens を拡大する
+    chunk_max_tokens = 4096 if think else 1024
     result = call_local_llm(
         prompt, model, base_url, api_key, timeout,
-        think=False, max_tokens=1024, no_stream=no_stream, system=system,
+        think=think, max_tokens=chunk_max_tokens, no_stream=no_stream, system=system,
+        no_chat_template_kwargs=no_chat_template_kwargs,
     )
     return result
 
@@ -366,8 +283,25 @@ def extract_from_chunk(
 # ローカルLLM 呼び出し（requests ライブラリ使用・ストリーミング）
 # --------------------------------------------------------------------------- #
 def strip_think_blocks(text: str) -> str:
-    """<think>...</think> ブロックを除去して議事録本文のみを返す"""
-    return re.sub(r"<think>[\s\S]*?</think>\s*", "", text).strip()
+    """CoT を除去して日本語本文のみを返す。
+
+    対応パターン:
+    1. <think>...</think> タグ付きブロック（Qwen3/ELYZA 系）
+    2. タグなし英語 CoT の前置き（Nemotron 系）— 日本語文字が最初に現れる段落から抽出する
+    """
+    # パターン1: <think>...</think> タグ除去
+    text = re.sub(r"<think>[\s\S]*?</think>\s*", "", text).strip()
+
+    # パターン2: 先頭が英語 CoT（ASCII主体）の場合、最初の日本語段落から開始
+    if text and not re.search(r"[^\x00-\x7F]", text[:200]):
+        # 日本語文字（ひらがな・カタカナ・漢字）を含む最初の行を探す
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if re.search(r"[\u3000-\u9FFF\uF900-\uFAFF]", line):
+                text = "\n".join(lines[i:]).strip()
+                break
+
+    return text
 
 
 def call_local_llm(
@@ -380,6 +314,7 @@ def call_local_llm(
     max_tokens: int = 8192,
     no_stream: bool = False,
     system: str = "",
+    no_chat_template_kwargs: bool = False,
 ) -> str:
     messages = []
     if system:
@@ -389,14 +324,20 @@ def call_local_llm(
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": 0.8,
+        "temperature": 0.6 if think else 0.8,
     }
-    # thinking モードは Qwen/ELYZA 系モデルの vLLM 拡張パラメータのみ送信
+    # thinking モードを有効化（enable_thinking のみ送信; clear_thinking は Qwen3 専用のため除外）
+    # thinking 時は top_p=0.95 を追加（ELYZA/Nemotron の推奨設定、反復ループ防止）
+    # no_chat_template_kwargs=True の場合は chat_template_kwargs を送信しない
+    # （Qwen3-Swallow 等の常時 reasoning モデル向け: toggle 不要、送信すると 400 エラーの可能性）
     if think:
-        payload["chat_template_kwargs"] = {
-            "enable_thinking": True,
-            "clear_thinking": False,
-        }
+        if not no_chat_template_kwargs:
+            payload["chat_template_kwargs"] = {"enable_thinking": True}
+        payload["top_p"] = 0.95
+    # Qwen3-Swallow 推奨サンプリングパラメータ（HF公式サンプルより）
+    # top_k=20 は常時 reasoning モデルの品質向上に効果あり
+    if no_chat_template_kwargs:
+        payload["top_k"] = 20
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -410,7 +351,9 @@ def call_local_llm(
         resp.raise_for_status()
         data = resp.json()
         msg = data["choices"][0]["message"]
-        content = msg.get("content") or msg.get("reasoning_content") or ""
+        # reasoning_content は reasoning parser が有効な場合に thinking が分離される領域。
+        # content のみを使用し、thinking トークンが出力に混入するのを防ぐ。
+        content = msg.get("content") or ""
         print(f"[INFO] 生成トークン数（strip前）: {len(content)} chars, think={think}")
         stripped = strip_think_blocks(content)
         print(f"[INFO] 生成トークン数（strip後）: {len(stripped)} chars")
@@ -440,7 +383,9 @@ def call_local_llm(
         if not choices:
             continue
         delta = choices[0].get("delta", {})
-        token = delta.get("content") or delta.get("reasoning_content") or ""
+        # reasoning parser 有効時は reasoning_content に thinking が流れる。
+        # content のみを取得し、thinking トークンが出力に混入するのを防ぐ。
+        token = delta.get("content") or ""
         if token:
             content_parts.append(token)
             print(".", end="", flush=True)
@@ -468,6 +413,7 @@ def generate_minutes(
     multi_stage: bool = False,
     chunk_minutes: int = 30,
     no_stream: bool = False,
+    no_chat_template_kwargs: bool = False,
 ) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する"""
     print(f"[INFO] 文字起こしファイルを読み込み中: {transcript_path}")
@@ -499,8 +445,18 @@ def generate_minutes(
             extraction = extract_from_chunk(
                 chunk_text, i, total, time_range,
                 claude_md_context, model, base_url, api_key, timeout,
-                no_stream=no_stream,
+                think=think, no_stream=no_stream,
+                no_chat_template_kwargs=no_chat_template_kwargs,
             )
+            # 空チャンク（reasoning parser が content を返さなかった場合等）はリトライ
+            if not extraction and not no_stream:
+                print(f"[WARN] チャンク {i} が空のためリトライ（no_stream=True）...")
+                extraction = extract_from_chunk(
+                    chunk_text, i, total, time_range,
+                    claude_md_context, model, base_url, api_key, timeout,
+                    think=think, no_stream=True,
+                    no_chat_template_kwargs=no_chat_template_kwargs,
+                )
             extractions.append(f"=== 第{i}部（{time_range}）===\n{extraction}")
             print(f"[INFO] チャンク {i}/{total} 抽出完了（{len(extraction)} 字）")
 
@@ -514,6 +470,7 @@ def generate_minutes(
         minutes_text = call_local_llm(
             prompt, model, base_url, api_key, timeout,
             think=think, max_tokens=max_tokens, no_stream=no_stream,
+            no_chat_template_kwargs=no_chat_template_kwargs,
         )
     else:
         # ------------------------------------------------------------------ #
@@ -529,18 +486,17 @@ def generate_minutes(
         minutes_text = call_local_llm(
             prompt, model, base_url, api_key, timeout,
             think=think, max_tokens=max_tokens, no_stream=no_stream,
+            no_chat_template_kwargs=no_chat_template_kwargs,
         )
 
-    # ステップ1スクラッチパッドを除去: "# 議事録\n" (単独行) 以降のみを保持
-    for marker in ("# 議事録\n\n", "# 議事録\n"):
+    # CoT スクラッチパッドを除去: "## 議事内容\n" 以降のみを保持
+    for marker in ("## 議事内容\n\n", "## 議事内容\n"):
         idx = minutes_text.find(marker)
         if idx >= 0:
             if idx > 0:
                 print(f"[INFO] スクラッチパッド除去: 先頭 {idx} 文字を削除")
                 minutes_text = minutes_text[idx:]
             break
-    # モデルが "# 議事録" を重複出力する場合に除去
-    minutes_text = re.sub(r'^(# 議事録\s*\n+){2,}', '# 議事録\n\n', minutes_text)
     # 末尾の締めくくりコメントを除去（「以上」「以下」「上記」で始まる行以降）
     minutes_text = re.sub(r'\n+(?:以上|以下|上記)[^\n]*$', '', minutes_text.rstrip())
     # 絶対年号を除去: 「2025年3月26日」→「3月26日」（文字起こし中の相対日付が年付きに拡張された場合）
@@ -549,6 +505,8 @@ def generate_minutes(
     minutes_text = re.sub(r'（推測）|（不明）|（確認要）|（未確認）', '', minutes_text)
     # llama.cpp / Ollama 等でチャットテンプレートの区切りトークンが漏出する場合に除去
     minutes_text = re.sub(r'<\|(?:user|assistant|system|endoftext)\|>.*', '', minutes_text, flags=re.DOTALL).rstrip()
+    # 出力フォーマットテンプレート由来の末尾コードブロック記号を除去
+    minutes_text = re.sub(r'\n```\s*$', '', minutes_text.rstrip())
 
     # 出力パスを生成: {output_dir}/YYYY-MM-DD-HHMMSS-<basename>-minutes.md
     now = datetime.now()
@@ -579,6 +537,12 @@ def main() -> int:
         help="議事録の出力ディレクトリ（デフォルト: minutes）",
     )
     parser.add_argument("--think", action="store_true", help="思考モードを有効化（デフォルト: 無効）")
+    parser.add_argument(
+        "--no-chat-template-kwargs",
+        action="store_true",
+        dest="no_chat_template_kwargs",
+        help="chat_template_kwargs を送信しない（常時 reasoning モデル向け: Qwen3-Swallow 等）",
+    )
     parser.add_argument("--url", default=None, help="ローカルLLMのURL（RIVAULT_URL 環境変数でも可）")
     parser.add_argument("--token", default=None, help="APIトークン（RIVAULT_TOKEN 環境変数でも可）")
     parser.add_argument("--timeout", type=int, default=600, help="LLM呼び出しタイムアウト秒数（デフォルト: 600）")
@@ -601,6 +565,8 @@ def main() -> int:
 
     print(f"[INFO] モデル      : {args.model}")
     print(f"[INFO] 思考モード  : {'有効' if args.think else '無効'}")
+    if args.think and args.no_chat_template_kwargs:
+        print(f"[INFO] chat_template_kwargs: 送信しない（常時 reasoning モデル）")
     print(f"[INFO] max_tokens  : {args.max_tokens}")
     print(f"[INFO] マルチステージ: {'有効' if args.multi_stage else '無効'}")
     if args.multi_stage:
@@ -614,6 +580,7 @@ def main() -> int:
             think=args.think, max_tokens=args.max_tokens,
             multi_stage=args.multi_stage, chunk_minutes=args.chunk_minutes,
             no_stream=args.no_stream,
+            no_chat_template_kwargs=args.no_chat_template_kwargs,
         )
         print(f"[完了] {output_path}")
         return 0
