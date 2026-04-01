@@ -572,8 +572,10 @@ def generate_minutes(
     )
     # Qwen3-Swallow は常時 reasoning のため no_chat_template_kwargs 時も 4096 が必要
     decisions_max_tokens = 4096 if (think or no_chat_template_kwargs) else 1024
+    # Stage 3 は入力が大きいため timeout を 2 倍にして余裕を持たせる
+    decisions_timeout = timeout * 2
     decisions_text = call_local_llm(
-        decisions_prompt, model, base_url, api_key, timeout,
+        decisions_prompt, model, base_url, api_key, decisions_timeout,
         think=think, max_tokens=decisions_max_tokens, no_stream=no_stream,
         no_chat_template_kwargs=no_chat_template_kwargs,
     )
@@ -581,7 +583,7 @@ def generate_minutes(
     if not decisions_text and not no_stream:
         print("[WARN] 決定事項が空のためリトライ（no_stream=True）...")
         decisions_text = call_local_llm(
-            decisions_prompt, model, base_url, api_key, timeout,
+            decisions_prompt, model, base_url, api_key, decisions_timeout,
             think=think, max_tokens=decisions_max_tokens, no_stream=True,
             no_chat_template_kwargs=no_chat_template_kwargs,
         )
