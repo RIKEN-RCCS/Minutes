@@ -83,6 +83,45 @@ Output format:
 """
 
 
+DECISIONS_TEMPLATE = """\
+You are extracting decisions and action items from Japanese meeting summaries.
+
+RULES:
+1. Output entirely in Japanese
+2. Begin immediately with "## 決定事項" — no preamble, no thinking text
+3. Dates/deadlines: use exactly as written in the summaries (e.g. "26日", "来週月曜日") — do NOT expand or infer months/years
+4. Person names: normalize using the Participant List below; if no clear assignee, write "（未定）"
+CRITICAL: "SPEAKER_00", "SPEAKER_01", "SPEAKER_02", etc. must NEVER appear in output.
+
+## 決定事項 rules:
+- List items where explicit agreement was reached (markers: 〜で進める / 〜に決定 / 〜することが合意 / 〜することになった / 〜が決定した)
+- Write each as a concise Japanese statement ending in 〜が決定された or 〜することになった
+- If no clear decisions found: write a single line "（なし）"
+
+## アクションアイテム rules:
+- List only specific tasks explicitly assigned or delegated to an identifiable person
+- Do NOT infer tasks that were not explicitly assigned in the summaries
+- If no clear action items found: write a single line "（なし）"
+
+Output format:
+## 決定事項
+
+- （決定事項）
+
+## アクションアイテム
+
+| 担当者 | タスク内容 | 期限 |
+|---|---|---|
+| （名前または未定） | （タスク） | （期限または未定） |
+
+## Participant List
+{claude_md_context}
+
+## Meeting Segment Summaries
+{transcript}
+"""
+
+
 # --------------------------------------------------------------------------- #
 # プロジェクト文脈の読み込み
 # --------------------------------------------------------------------------- #
@@ -269,8 +308,8 @@ def extract_from_chunk(
         chunk_text=chunk_text,
     )
     system = "You are a Japanese meeting minutes assistant. Output Japanese prose only, no bullet points."
-    # thinking モード時は思考トークン分を見込んで max_tokens を拡大する
-    chunk_max_tokens = 4096 if think else 1024
+    # Qwen3-Swallow は常時 reasoning のため no_chat_template_kwargs 時も 4096 が必要
+    chunk_max_tokens = 4096 if (think or no_chat_template_kwargs) else 1024
     result = call_local_llm(
         prompt, model, base_url, api_key, timeout,
         think=think, max_tokens=chunk_max_tokens, no_stream=no_stream, system=system,
@@ -290,6 +329,9 @@ def strip_think_blocks(text: str) -> str:
     2. タグなし英語 CoT の前置き（Nemotron 系）— 日本語文字が最初に現れる段落から抽出する
     """
     # パターン1: <think>...</think> タグ除去
+    # 閉じタグが無い場合（max_tokens 打ち切り）は空文字を返してリトライを促す
+    if "<think>" in text and "</think>" not in text:
+        return ""
     text = re.sub(r"<think>[\s\S]*?</think>\s*", "", text).strip()
 
     # パターン2: 先頭が英語 CoT（ASCII主体）の場合、最初の日本語段落から開始
@@ -414,8 +456,13 @@ def generate_minutes(
     chunk_minutes: int = 30,
     no_stream: bool = False,
     no_chat_template_kwargs: bool = False,
+    from_combined: str | None = None,
 ) -> str:
-    """文字起こしファイルから議事録を生成してファイルに保存する"""
+    """文字起こしファイルから議事録を生成してファイルに保存する。
+
+    from_combined が指定された場合は Stage 1+2（チャンク抽出・統合）をスキップし、
+    指定ファイルから combined テキストを読み込んで Stage 3（決定事項抽出）のみ実行する。
+    """
     print(f"[INFO] 文字起こしファイルを読み込み中: {transcript_path}")
     segments = parse_transcript(transcript_path)
     if not segments:
@@ -424,7 +471,24 @@ def generate_minutes(
 
     claude_md_context = load_claude_md_context()
 
-    if multi_stage:
+    # 出力パスの命名に必要な now/basename は早めに確定する
+    now = datetime.now()
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+    basename = Path(transcript_path).stem
+
+    if from_combined is not None:
+        # ------------------------------------------------------------------ #
+        # --from-combined: Stage 3 のみ実行（Stage 1+2 をスキップ）
+        # ------------------------------------------------------------------ #
+        print(f"[INFO] combined ファイルを読み込み中: {from_combined}")
+        combined = Path(from_combined).read_text(encoding="utf-8")
+        print(f"[INFO] combined テキスト: {len(combined)} 字")
+        # Stage 2 をスキップするため minutes_text は空文字とし、Stage 3 のみ生成
+        minutes_text = ""
+        input_text = combined
+
+    elif multi_stage:
         # ------------------------------------------------------------------ #
         # マルチステージ: 分割→抽出→統合
         # ------------------------------------------------------------------ #
@@ -462,6 +526,13 @@ def generate_minutes(
 
         combined = "\n\n".join(extractions)
         print(f"[INFO] 全チャンク抽出完了。統合テキスト: {len(combined)} 字")
+
+        # combined をキャッシュファイルとして保存（Stage 3 の再実行・デバッグ用）
+        combined_filename = now.strftime("%Y-%m-%d-%H%M%S") + f"-{basename}-combined.txt"
+        combined_path = output_dir_path / combined_filename
+        combined_path.write_text(combined, encoding="utf-8")
+        print(f"[INFO] combined キャッシュを保存しました: {combined_path}")
+
         print(f"[INFO] ローカルLLM（{model}）で議事録を統合生成中...")
         prompt = PROMPT_TEMPLATE.format(
             claude_md_context=claude_md_context,
@@ -472,6 +543,7 @@ def generate_minutes(
             think=think, max_tokens=max_tokens, no_stream=no_stream,
             no_chat_template_kwargs=no_chat_template_kwargs,
         )
+        input_text = combined
     else:
         # ------------------------------------------------------------------ #
         # 単一パス（従来の動作）
@@ -488,6 +560,39 @@ def generate_minutes(
             think=think, max_tokens=max_tokens, no_stream=no_stream,
             no_chat_template_kwargs=no_chat_template_kwargs,
         )
+        input_text = transcript_text
+
+    # ------------------------------------------------------------------ #
+    # Stage 3: 決定事項・アクションアイテムの抽出
+    # ------------------------------------------------------------------ #
+    print(f"[INFO] ローカルLLM（{model}）で決定事項・アクションアイテムを生成中...")
+    decisions_prompt = DECISIONS_TEMPLATE.format(
+        claude_md_context=claude_md_context,
+        transcript=input_text,
+    )
+    # Qwen3-Swallow は常時 reasoning のため no_chat_template_kwargs 時も 4096 が必要
+    decisions_max_tokens = 4096 if (think or no_chat_template_kwargs) else 1024
+    decisions_text = call_local_llm(
+        decisions_prompt, model, base_url, api_key, timeout,
+        think=think, max_tokens=decisions_max_tokens, no_stream=no_stream,
+        no_chat_template_kwargs=no_chat_template_kwargs,
+    )
+    # 空の場合は no_stream でリトライ（reasoning parser の streaming 問題に対応）
+    if not decisions_text and not no_stream:
+        print("[WARN] 決定事項が空のためリトライ（no_stream=True）...")
+        decisions_text = call_local_llm(
+            decisions_prompt, model, base_url, api_key, timeout,
+            think=think, max_tokens=decisions_max_tokens, no_stream=True,
+            no_chat_template_kwargs=no_chat_template_kwargs,
+        )
+    # 決定事項のスクラッチパッド除去
+    for marker in ("## 決定事項\n\n", "## 決定事項\n"):
+        idx = decisions_text.find(marker)
+        if idx >= 0:
+            if idx > 0:
+                print(f"[INFO] 決定事項スクラッチパッド除去: 先頭 {idx} 文字を削除")
+                decisions_text = decisions_text[idx:]
+            break
 
     # CoT スクラッチパッドを除去: "## 議事内容\n" 以降のみを保持
     for marker in ("## 議事内容\n\n", "## 議事内容\n"):
@@ -497,23 +602,28 @@ def generate_minutes(
                 print(f"[INFO] スクラッチパッド除去: 先頭 {idx} 文字を削除")
                 minutes_text = minutes_text[idx:]
             break
+
+    # 決定事項・アクションアイテム + 議事内容 を結合
+    # from_combined 時は minutes_text が空なので decisions_text のみ出力
+    if minutes_text:
+        full_text = decisions_text + "\n\n" + minutes_text
+    else:
+        full_text = decisions_text
+
     # 末尾の締めくくりコメントを除去（「以上」「以下」「上記」で始まる行以降）
-    minutes_text = re.sub(r'\n+(?:以上|以下|上記)[^\n]*$', '', minutes_text.rstrip())
+    full_text = re.sub(r'\n+(?:以上|以下|上記)[^\n]*$', '', full_text.rstrip())
     # 絶対年号を除去: 「2025年3月26日」→「3月26日」（文字起こし中の相対日付が年付きに拡張された場合）
-    minutes_text = re.sub(r'\d{4}年(\d{1,2}月\d{1,2}日)', r'\1', minutes_text)
+    full_text = re.sub(r'\d{4}年(\d{1,2}月\d{1,2}日)', r'\1', full_text)
     # 「（推測）」「（不明）」等の不確かさ注記を除去
-    minutes_text = re.sub(r'（推測）|（不明）|（確認要）|（未確認）', '', minutes_text)
+    full_text = re.sub(r'（推測）|（不明）|（確認要）|（未確認）', '', full_text)
     # llama.cpp / Ollama 等でチャットテンプレートの区切りトークンが漏出する場合に除去
-    minutes_text = re.sub(r'<\|(?:user|assistant|system|endoftext)\|>.*', '', minutes_text, flags=re.DOTALL).rstrip()
+    full_text = re.sub(r'<\|(?:user|assistant|system|endoftext)\|>.*', '', full_text, flags=re.DOTALL).rstrip()
     # 出力フォーマットテンプレート由来の末尾コードブロック記号を除去
-    minutes_text = re.sub(r'\n```\s*$', '', minutes_text.rstrip())
+    full_text = re.sub(r'\n```\s*$', '', full_text.rstrip())
+    minutes_text = full_text
 
     # 出力パスを生成: {output_dir}/YYYY-MM-DD-HHMMSS-<basename>-minutes.md
-    now = datetime.now()
-    output_dir_path = Path(output_dir)
-    output_dir_path.mkdir(parents=True, exist_ok=True)
-
-    basename = Path(transcript_path).stem
+    # （now / output_dir_path / basename は generate_minutes 冒頭で確定済み）
     filename = now.strftime("%Y-%m-%d-%H%M%S") + f"-{basename}-minutes.md"
     output_path = output_dir_path / filename
 
@@ -550,6 +660,13 @@ def main() -> int:
     parser.add_argument("--multi-stage", action="store_true", help="マルチステージ（分割→抽出→統合）モードを有効化")
     parser.add_argument("--chunk-minutes", type=int, default=30, help="マルチステージ時のチャンクサイズ（分単位、デフォルト: 30）")
     parser.add_argument("--no-stream", action="store_true", help="ストリーミングを無効化（LiteLLM プロキシ経由等で streaming が動作しない場合に使用）")
+    parser.add_argument(
+        "--from-combined",
+        default=None,
+        dest="from_combined",
+        metavar="FILE",
+        help="combined キャッシュファイルから読み込んで Stage 3（決定事項抽出）のみ実行する（Stage 1+2 をスキップ）",
+    )
     args = parser.parse_args()
 
     if not os.path.exists(args.transcript):
@@ -581,6 +698,7 @@ def main() -> int:
             multi_stage=args.multi_stage, chunk_minutes=args.chunk_minutes,
             no_stream=args.no_stream,
             no_chat_template_kwargs=args.no_chat_template_kwargs,
+            from_combined=args.from_combined,
         )
         print(f"[完了] {output_path}")
         return 0
