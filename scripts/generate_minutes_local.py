@@ -298,6 +298,7 @@ def extract_from_chunk(
     think: bool = False,
     no_stream: bool = False,
     no_chat_template_kwargs: bool = False,
+    temperature: float | None = None,
 ) -> str:
     """1チャンクから事実を抽出する（Stage 2）"""
     prompt = CHUNK_EXTRACTION_TEMPLATE.format(
@@ -313,7 +314,7 @@ def extract_from_chunk(
     result = call_local_llm(
         prompt, model, base_url, api_key, timeout,
         think=think, max_tokens=chunk_max_tokens, no_stream=no_stream, system=system,
-        no_chat_template_kwargs=no_chat_template_kwargs,
+        no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
     )
     return result
 
@@ -357,16 +358,19 @@ def call_local_llm(
     no_stream: bool = False,
     system: str = "",
     no_chat_template_kwargs: bool = False,
+    temperature: float | None = None,
 ) -> str:
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
+    # temperature: 明示指定があればそれを使用、なければ think モードに応じたデフォルト
+    effective_temp = temperature if temperature is not None else (0.6 if think else 0.8)
     payload: dict = {
         "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
-        "temperature": 0.6 if think else 0.8,
+        "temperature": effective_temp,
     }
     # thinking モードを有効化（enable_thinking のみ送信; clear_thinking は Qwen3 専用のため除外）
     # thinking 時は top_p=0.95 を追加（ELYZA/Nemotron の推奨設定、反復ループ防止）
@@ -457,6 +461,7 @@ def generate_minutes(
     no_stream: bool = False,
     no_chat_template_kwargs: bool = False,
     from_combined: str | None = None,
+    temperature: float | None = None,
 ) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する。
 
@@ -511,6 +516,7 @@ def generate_minutes(
                 claude_md_context, model, base_url, api_key, timeout,
                 think=think, no_stream=no_stream,
                 no_chat_template_kwargs=no_chat_template_kwargs,
+                temperature=temperature,
             )
             # 空チャンク（reasoning parser が content を返さなかった場合等）はリトライ
             if not extraction and not no_stream:
@@ -520,6 +526,7 @@ def generate_minutes(
                     claude_md_context, model, base_url, api_key, timeout,
                     think=think, no_stream=True,
                     no_chat_template_kwargs=no_chat_template_kwargs,
+                    temperature=temperature,
                 )
             extractions.append(f"=== 第{i}部（{time_range}）===\n{extraction}")
             print(f"[INFO] チャンク {i}/{total} 抽出完了（{len(extraction)} 字）")
@@ -541,7 +548,7 @@ def generate_minutes(
         minutes_text = call_local_llm(
             prompt, model, base_url, api_key, timeout,
             think=think, max_tokens=max_tokens, no_stream=no_stream,
-            no_chat_template_kwargs=no_chat_template_kwargs,
+            no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
         )
         input_text = combined
     else:
@@ -558,7 +565,7 @@ def generate_minutes(
         minutes_text = call_local_llm(
             prompt, model, base_url, api_key, timeout,
             think=think, max_tokens=max_tokens, no_stream=no_stream,
-            no_chat_template_kwargs=no_chat_template_kwargs,
+            no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
         )
         input_text = transcript_text
 
@@ -577,7 +584,7 @@ def generate_minutes(
     decisions_text = call_local_llm(
         decisions_prompt, model, base_url, api_key, decisions_timeout,
         think=think, max_tokens=decisions_max_tokens, no_stream=no_stream,
-        no_chat_template_kwargs=no_chat_template_kwargs,
+        no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
     )
     # 空の場合は no_stream でリトライ（reasoning parser の streaming 問題に対応）
     if not decisions_text and not no_stream:
@@ -585,7 +592,7 @@ def generate_minutes(
         decisions_text = call_local_llm(
             decisions_prompt, model, base_url, api_key, decisions_timeout,
             think=think, max_tokens=decisions_max_tokens, no_stream=True,
-            no_chat_template_kwargs=no_chat_template_kwargs,
+            no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
         )
     # 決定事項のスクラッチパッド除去
     for marker in ("## 決定事項\n\n", "## 決定事項\n"):
@@ -662,6 +669,7 @@ def main() -> int:
     parser.add_argument("--multi-stage", action="store_true", help="マルチステージ（分割→抽出→統合）モードを有効化")
     parser.add_argument("--chunk-minutes", type=int, default=30, help="マルチステージ時のチャンクサイズ（分単位、デフォルト: 30）")
     parser.add_argument("--no-stream", action="store_true", help="ストリーミングを無効化（LiteLLM プロキシ経由等で streaming が動作しない場合に使用）")
+    parser.add_argument("--temperature", type=float, default=None, help="サンプリング温度（デフォルト: think=True 時 0.6、それ以外 0.8）。Kimi-K2-Thinking は 1.0 推奨")
     parser.add_argument(
         "--from-combined",
         default=None,
@@ -691,6 +699,8 @@ def main() -> int:
     if args.multi_stage:
         print(f"[INFO] チャンク    : {args.chunk_minutes} 分")
     print(f"[INFO] ストリーミング: {'無効' if args.no_stream else '有効'}")
+    if args.temperature is not None:
+        print(f"[INFO] temperature : {args.temperature}")
     print(f"[INFO] LLM URL     : {base_url}")
 
     try:
@@ -701,6 +711,7 @@ def main() -> int:
             no_stream=args.no_stream,
             no_chat_template_kwargs=args.no_chat_template_kwargs,
             from_combined=args.from_combined,
+            temperature=args.temperature,
         )
         print(f"[完了] {output_path}")
         return 0
