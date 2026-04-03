@@ -12,14 +12,19 @@
 Minutes/
 ├── CLAUDE.md              # ベースライン指示
 ├── README.md              # プロジェクト概要
+├── docs/
+│   └── project.md         # プロジェクト説明・参加者一覧・用語集（gitignore）
 ├── scripts/               # スクリプト
 │   ├── trans.sh           # SLURMバッチジョブ実行スクリプト
 │   ├── whisper_vad.py     # 主書き起こしスクリプト（Whisper + PyAnnote + VAD）
-│   └── generate_minutes.py # 議事録生成スクリプト（Claude CLI使用）
+│   ├── generate_minutes.py         # 議事録生成スクリプト（Claude CLI使用）
+│   ├── generate_minutes_local.py   # 議事録生成スクリプト（ローカルLLM使用）
+│   └── local.sh           # generate_minutes_local.py の実行コマンド（gitignore）
 ├── data/                  # 音声データ
 │   └── input/             # オーディオ/ビデオファイルおよびWhisper出力（.mdファイル）
 └── minutes/               # 最終会議記録
-    └── YYYY-MM-DD-timestamp-file-md-minutes.md
+    ├── YYYY-MM-DD-timestamp-file-md-minutes.md
+    └── YYYY-MM-DD-timestamp-file-combined.txt  # Stage 1 キャッシュ（再実行用）
 ```
 
 ## アーキテクチャ
@@ -116,6 +121,72 @@ MODEL_LOCAL = "./whisper-large-v3-ja-final"  # ローカルファインチュー
 `generate_minutes.py`が`claude -p`コマンドを呼び出す。
 このCLAUDE.mdのプロジェクト背景・用語集はClaude CLIが自動で読み込むため、
 プロンプトへの再記述は不要。
+
+## ローカルLLM議事録生成（generate_minutes_local.py）
+
+vLLMサーバー上のローカルLLMを使って議事録を生成するスクリプト。
+`scripts/local.sh` に現在の実行コマンドを記載している。
+
+### 3ステージパイプライン（--multi-stage）
+
+```
+Stage 1: チャンク抽出（extract_from_chunk × N）
+  文字起こしを --chunk-minutes 分ごとに分割し、各チャンクから事実を抽出する。
+  結果は minutes/*-combined.txt にキャッシュ保存される。
+
+Stage 2: 議事内容生成（PROMPT_TEMPLATE）
+  全チャンク要約を統合し、6-8 の節からなる議事内容（## 議事内容）を生成する。
+
+Stage 3: 決定事項・アクションアイテム抽出（DECISIONS_TEMPLATE）
+  同じチャンク要約から ## 決定事項 と ## アクションアイテム を抽出する。
+```
+
+出力順序: `## 決定事項` → `## アクションアイテム` → `## 議事内容`
+
+### 主なオプション
+
+| オプション | 説明 |
+|---|---|
+| `--model MODEL` | vLLM で起動しているモデル名 |
+| `--url URL` | vLLM エンドポイント（例: `http://ng-dgx-s-00:8000/v1`）|
+| `--multi-stage` | 3ステージパイプラインを有効化 |
+| `--chunk-minutes N` | Stage 1 のチャンク長（分）。デフォルト 30、推奨 10 |
+| `--think` | reasoning モード（Qwen3-Swallow等の thinking モデル用）|
+| `--no-chat-template-kwargs` | `chat_template_kwargs` を送信しない（Qwen3-Swallow では必須）|
+| `--max-tokens N` | 最大生成トークン数。thinking モデルは 16384 推奨 |
+| `--temperature F` | サンプリング温度（デフォルト: think時 0.6、通常時 0.8）|
+| `--from-combined FILE` | Stage 1 をスキップし、キャッシュから Stage 2+3 を実行 |
+
+### vLLMサーバー
+
+- **エンドポイント**: `http://ng-dgx-s-00:8000/v1`
+- **現在のモデル**: `tokyotech-llm/Qwen3-Swallow-30B-A3B-RL-v0.2`（MoE、約20分/会議）
+  - `--think --no-chat-template-kwargs --max-tokens 16384` が必要
+  - dense版（32B）と比べ約2倍速い
+- **RiVault**（代替）: `http://llm.ai.r-ccs.riken.jp:11434/v1`、トークンは `~/.secrets/rivault_tokens.sh`
+  - Kimi-K2-Thinking は 60 秒 gateway timeout のため長文生成に不向き
+
+### 実行例
+
+```bash
+# フルパイプライン（local.sh の内容）
+bash scripts/local.sh
+
+# Stage 1 スキップ（プロンプト調整時の再実行）
+python3 scripts/generate_minutes_local.py \
+  data/input/meeting.md \
+  --model tokyotech-llm/Qwen3-Swallow-30B-A3B-RL-v0.2 \
+  --url http://ng-dgx-s-00:8000/v1 \
+  --from-combined minutes/YYYY-MM-DD-...-combined.txt \
+  --think --no-chat-template-kwargs --max-tokens 16384
+```
+
+### 設計上の注意点
+
+- Qwen3-Swallow は常時 reasoning モード。vLLM の `--reasoning-parser qwen3` が thinking を `reasoning_content` に分離するため、streaming 時に `content` が空になることがある → 自動で `no_stream=True` リトライ
+- `strip_think_blocks()`: `</think>` が max_tokens 内に収まらない場合は空文字を返してリトライを促す
+- Stage 3 の `decisions_max_tokens` は `--max-tokens` の値を使用（固定 4096 では thinking に使い切られる）
+- チャンク要約（combined）は話者帰属情報を除去した散文のため、アクションアイテムの担当者特定精度はやや低い
 
 ## プロジェクトの説明
 <!-- プロジェクトの内容を docs/project.md に記載する、機密性の高い内容のため github へ登録しない -->
