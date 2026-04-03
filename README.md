@@ -108,24 +108,6 @@ Stage 2: 全チャンク要約を統合して議事内容（6-8 節）を生成
 Stage 3: 同じチャンク要約から決定事項・アクションアイテムを抽出
 ```
 
-### 推奨コマンド（現在の設定）
-
-```bash
-# scripts/local.sh の内容
-python3 scripts/generate_minutes_local.py data/input/meeting.md \
-    --model tokyotech-llm/Qwen3-Swallow-30B-A3B-RL-v0.2 \
-    --url http://ng-dgx-s-00:8000/v1 \
-    --multi-stage --chunk-minutes 10 \
-    --think --no-chat-template-kwargs --max-tokens 16384
-
-# プロンプト調整時など Stage 1 をスキップして Stage 2+3 のみ再実行
-python3 scripts/generate_minutes_local.py data/input/meeting.md \
-    --model tokyotech-llm/Qwen3-Swallow-30B-A3B-RL-v0.2 \
-    --url http://ng-dgx-s-00:8000/v1 \
-    --from-combined minutes/YYYY-MM-DD-...-combined.txt \
-    --think --no-chat-template-kwargs --max-tokens 16384
-```
-
 ### 試したモデルの評価
 
 | モデル | 評価 | 所要時間 | 備考 |
