@@ -57,22 +57,30 @@ Organize them into 6-8 thematic sections.
 RULES:
 1. Output must be entirely in Japanese
 2. Focus on WHAT was discussed — topics, proposals, numbers, conclusions
-3. Each section: 400-600 Japanese characters of continuous prose
-4. Section titles: concise Japanese noun phrases (15 characters or less)
-5. NO speaker attribution ("〜さんが言った", "SPEAKER_XX が" etc.)
-6. Use correct project terminology from the reference below
-7. Preserve exact numbers, dates as written in the summaries, and technical terms
-8. Begin output immediately with "## 議事内容" — no preamble, no other sections
+3. Each section: 3-5 paragraphs, each paragraph 3-4 sentences (approx. 120-180 chars)
+4. Separate paragraphs with a blank line
+5. Avoid padding and repetition, but include background context, raised concerns, and rationale behind decisions
+6. Section titles: concise Japanese noun phrases (15 characters or less)
+7. NO speaker attribution ("〜さんが言った", "SPEAKER_XX が" etc.)
+8. Use correct project terminology from the reference below
+9. Preserve exact numbers, dates as written in the summaries, and technical terms
+10. Begin output immediately with "## 議事内容" — no preamble, no other sections
 CRITICAL: The strings "SPEAKER_00", "SPEAKER_01", "SPEAKER_02", etc. must NEVER appear in your output.
 
 Output format:
 ## 議事内容
 
 ### （タイトル）
-（300-500字）
+
+（1つ目の段落。2〜3文。）
+
+（2つ目の段落。2〜3文。）
 
 ### （タイトル）
-（300-500字）
+
+（1つ目の段落。2〜3文。）
+
+（2つ目の段落。2〜3文。）
 
 (6-8 sections total, covering the entire meeting)
 
@@ -487,13 +495,21 @@ def generate_minutes(
 
     if from_combined is not None:
         # ------------------------------------------------------------------ #
-        # --from-combined: Stage 3 のみ実行（Stage 1+2 をスキップ）
+        # --from-combined: Stage 1 をスキップし、Stage 2+3 を実行
         # ------------------------------------------------------------------ #
         print(f"[INFO] combined ファイルを読み込み中: {from_combined}")
         combined = Path(from_combined).read_text(encoding="utf-8")
         print(f"[INFO] combined テキスト: {len(combined)} 字")
-        # Stage 2 をスキップするため minutes_text は空文字とし、Stage 3 のみ生成
-        minutes_text = ""
+        print(f"[INFO] ローカルLLM（{model}）で議事録を統合生成中...")
+        prompt = PROMPT_TEMPLATE.format(
+            claude_md_context=claude_md_context,
+            transcript=combined,
+        )
+        minutes_text = call_local_llm(
+            prompt, model, base_url, api_key, timeout,
+            think=think, max_tokens=max_tokens, no_stream=no_stream,
+            no_chat_template_kwargs=no_chat_template_kwargs, temperature=temperature,
+        )
         input_text = combined
 
     elif multi_stage:
