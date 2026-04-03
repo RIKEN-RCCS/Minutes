@@ -584,8 +584,8 @@ def generate_minutes(
         claude_md_context=claude_md_context,
         transcript=input_text,
     )
-    # Qwen3-Swallow は常時 reasoning のため no_chat_template_kwargs 時も 4096 が必要
-    decisions_max_tokens = 4096 if (think or no_chat_template_kwargs) else 1024
+    # thinking モデルは thinking に多くのトークンを消費するため max_tokens をそのまま使用
+    decisions_max_tokens = max_tokens if (think or no_chat_template_kwargs) else 1024
     # Stage 3 は入力が大きいため timeout を 2 倍にして余裕を持たせる
     decisions_timeout = timeout * 2
     decisions_text = call_local_llm(
