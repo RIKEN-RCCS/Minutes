@@ -60,11 +60,12 @@ RULES:
 3. Each section: 3-5 paragraphs, each paragraph 3-4 sentences (approx. 120-180 chars)
 4. Separate paragraphs with a blank line
 5. Avoid padding and repetition, but include background context, raised concerns, and rationale behind decisions
-6. Section titles: concise Japanese noun phrases (15 characters or less)
+6. Section titles: concise Japanese noun phrases reflecting the actual topic discussed (15 characters or less)
 7. NO speaker attribution ("〜さんが言った", "SPEAKER_XX が" etc.)
-8. Use correct project terminology from the reference below
-9. Preserve exact numbers, dates as written in the summaries, and technical terms
-10. Begin output immediately with "## 議事内容" — no preamble, no other sections
+8. Do NOT insert horizontal rules (---) between sections
+9. Actively correct speech recognition errors: cross-reference ALL technical terms, application names, and project-specific words against the Project Terminology Reference. Replace phonetic approximations or garbled terms with the correct form (e.g. 「ファントホローブルー」→ FrontFlow/Blue, 「サーモン」→ SALMON, 「スケールTKF」→ SCALE-LETKF).
+10. Preserve exact numbers and dates as written in the summaries
+11. Begin output immediately with "## 議事内容" — no preamble, no other sections
 CRITICAL: The strings "SPEAKER_00", "SPEAKER_01", "SPEAKER_02", etc. must NEVER appear in your output.
 
 Output format:
@@ -100,16 +101,26 @@ RULES:
 2. Begin immediately with "## 決定事項" — no preamble, no thinking text
 3. Dates/deadlines: use exactly as written in the summaries (e.g. "26日", "来週月曜日") — do NOT expand or infer months/years
 4. Person names: normalize using the Participant List below; if no clear assignee, write "（未定）"
+5. Actively correct speech recognition errors: replace phonetic approximations with correct terms from the Participant List and Project Terminology Reference (e.g. 「ファントホローブルー」→ FrontFlow/Blue, 「サーモン」→ SALMON).
 CRITICAL: "SPEAKER_00", "SPEAKER_01", "SPEAKER_02", etc. must NEVER appear in output.
 
 ## 決定事項 rules:
-- List items where explicit agreement was reached (markers: 〜で進める / 〜に決定 / 〜することが合意 / 〜することになった / 〜が決定した)
-- Write each as a concise Japanese statement ending in 〜が決定された or 〜することになった
-- If no clear decisions found: write a single line "（なし）"
+- **Core decisions only (3-7 items)**: Include ONLY decisions that materially affect the project — cancelled/rescheduled meetings, agreed policy or methodology, committed deliverables with scope/deadline.
+- Ask yourself: "Would this item appear in a formal board-level summary?" If not, omit it.
+- Definitely omit: routine procedural confirmations ("資料を配布する", "Slackで共有する", "アジェンダを反映する", "議事録を作成する"), minor operational steps, and restatements of deadlines that are already obvious from context.
+- Markers for explicit agreement: 〜で進める / 〜に決定 / 〜することが合意 / 〜することになった / 〜が決定した
+- Vary the ending naturally in Japanese (e.g. 〜することになった / 〜と合意した / 〜する方針となった / 〜をキャンセルした). Do NOT end every item with 〜が決定された.
+- If no significant decisions found: write a single line "（なし）"
 
 ## アクションアイテム rules:
 - List only specific tasks explicitly assigned or delegated to an identifiable person
 - Do NOT infer tasks that were not explicitly assigned in the summaries
+- タスク内容: Write 2-3 sentences (40-80 chars each) covering (1) what to do, (2) why it matters / background, (3) expected output. Do NOT include deadline expressions (e.g. 「26日までに」「27日までに」) — those belong in the 期限 column only.
+
+Example — follow this style:
+BAD:  「各アプリの測定結果を提出する。」
+GOOD: 「未測定アプリのベンチマークを実行し性能数値を取得する。これらの数値は最終報告書に反映するため、測定結果をまとめて共有する。」
+
 - If no clear action items found: write a single line "（なし）"
 
 Output format:
@@ -121,7 +132,7 @@ Output format:
 
 | 担当者 | タスク内容 | 期限 |
 |---|---|---|
-| （名前または未定） | （タスク） | （期限または未定） |
+| （名前または未定） | （タスクの内容・背景・成果物を2〜3文で） | （期限または未定） |
 
 ## Participant List
 {claude_md_context}
@@ -276,12 +287,14 @@ unnatural phrasing, and broken sentences, especially for technical terms and pro
 Your task: Write a detailed Japanese prose summary of everything discussed in this segment.
 
 RULES:
-- Use the Project Terminology below to correct Whisper ASR misrecognitions
-  (e.g. katakana approximations of English terms should be restored to their correct form)
-- Cover ALL topics mentioned: decisions, numbers, proposals, concerns, and action items
-- Write in natural Japanese WITHOUT speaker attribution or "SPEAKER_XX" references
-- Do NOT add content not present in the transcript
-- Output Japanese prose only (no bullet points, no headers)
+1. CRITICAL - ASR correction: Before writing, scan the transcript for misrecognized words and replace them with the correct form from the Project Terminology below. Common ASR error patterns:
+   - Phonetic katakana rendering of English terms (e.g. 「フロントフロー」「ファントホローブルー」→ FrontFlow/Blue, 「スケールTKF」「スケールエルティーケーエフ」→ SCALE-LETKF, 「サーモン」→ SALMON, 「ジェネシス」→ GENESIS, 「エルキューシーディー」→ LQCD-DWF-HMC)
+   - Partial or garbled technical acronyms (e.g. 「エフエフブイ」→ FFVHC-ACE, 「ユワバミ」→ UWABAMI)
+   - Person names misheard as similar-sounding names — check against the Participant List and use the correct name
+2. Cover ALL topics mentioned: decisions, numbers, proposals, concerns, and action items
+3. Write in natural Japanese WITHOUT speaker attribution or "SPEAKER_XX" references
+4. Do NOT add content not present in the transcript
+5. Output Japanese prose only (no bullet points, no headers)
 CRITICAL: Never write "SPEAKER_00", "SPEAKER_01", "SPEAKER_02" or any "SPEAKER_" token in the output.
 
 ## Project Terminology
