@@ -31,6 +31,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import requests
 
@@ -298,9 +299,10 @@ def extract_from_chunk(
     think: bool = False,
     no_stream: bool = False,
     no_chat_template_kwargs: bool = False,
-    temperature: float | None = None,
+    temperature: Optional[float] = None,
+    max_tokens: int = 4096,
 ) -> str:
-    """1チャンクから事実を抽出する（Stage 2）"""
+    """1チャンクから事実を抽出する（Stage 1）"""
     prompt = CHUNK_EXTRACTION_TEMPLATE.format(
         chunk_idx=chunk_idx,
         total_chunks=total_chunks,
@@ -309,8 +311,9 @@ def extract_from_chunk(
         chunk_text=chunk_text,
     )
     system = "You are a Japanese meeting minutes assistant. Output Japanese prose only, no bullet points."
-    # Qwen3-Swallow は常時 reasoning のため no_chat_template_kwargs 時も 4096 が必要
-    chunk_max_tokens = 4096 if (think or no_chat_template_kwargs) else 1024
+    # thinking モデルは思考トークン分を考慮して max_tokens をそのまま使用
+    # 非 thinking モデルは 1024 で十分
+    chunk_max_tokens = max_tokens if (think or no_chat_template_kwargs) else 1024
     result = call_local_llm(
         prompt, model, base_url, api_key, timeout,
         think=think, max_tokens=chunk_max_tokens, no_stream=no_stream, system=system,
@@ -358,7 +361,7 @@ def call_local_llm(
     no_stream: bool = False,
     system: str = "",
     no_chat_template_kwargs: bool = False,
-    temperature: float | None = None,
+    temperature: Optional[float] = None,
 ) -> str:
     messages = []
     if system:
@@ -460,8 +463,8 @@ def generate_minutes(
     chunk_minutes: int = 30,
     no_stream: bool = False,
     no_chat_template_kwargs: bool = False,
-    from_combined: str | None = None,
-    temperature: float | None = None,
+    from_combined: Optional[str] = None,
+    temperature: Optional[float] = None,
 ) -> str:
     """文字起こしファイルから議事録を生成してファイルに保存する。
 
@@ -511,23 +514,27 @@ def generate_minutes(
             m1, s1 = divmod(r1, 60)
             time_range = f"{h0:02d}:{m0:02d}:{s0:02d}〜{h1:02d}:{m1:02d}:{s1:02d}"
             print(f"[INFO] チャンク {i}/{total} を抽出中... ({time_range})")
-            extraction = extract_from_chunk(
-                chunk_text, i, total, time_range,
-                claude_md_context, model, base_url, api_key, timeout,
-                think=think, no_stream=no_stream,
-                no_chat_template_kwargs=no_chat_template_kwargs,
-                temperature=temperature,
-            )
-            # 空チャンク（reasoning parser が content を返さなかった場合等）はリトライ
-            if not extraction and not no_stream:
-                print(f"[WARN] チャンク {i} が空のためリトライ（no_stream=True）...")
+            try:
                 extraction = extract_from_chunk(
                     chunk_text, i, total, time_range,
                     claude_md_context, model, base_url, api_key, timeout,
-                    think=think, no_stream=True,
+                    think=think, no_stream=no_stream,
                     no_chat_template_kwargs=no_chat_template_kwargs,
-                    temperature=temperature,
+                    temperature=temperature, max_tokens=max_tokens,
                 )
+                # 空チャンク（reasoning parser が content を返さなかった場合等）はリトライ
+                if not extraction and not no_stream:
+                    print(f"[WARN] チャンク {i} が空のためリトライ（no_stream=True）...")
+                    extraction = extract_from_chunk(
+                        chunk_text, i, total, time_range,
+                        claude_md_context, model, base_url, api_key, timeout,
+                        think=think, no_stream=True,
+                        no_chat_template_kwargs=no_chat_template_kwargs,
+                        temperature=temperature, max_tokens=max_tokens,
+                    )
+            except Exception as e:
+                print(f"[WARN] チャンク {i} 抽出失敗（{e}）、空文字で続行")
+                extraction = ""
             extractions.append(f"=== 第{i}部（{time_range}）===\n{extraction}")
             print(f"[INFO] チャンク {i}/{total} 抽出完了（{len(extraction)} 字）")
 
