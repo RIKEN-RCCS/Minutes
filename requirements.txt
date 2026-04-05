@@ -1,0 +1,2 @@
+# 議事録生成（generate_minutes_local.py）
+requests
