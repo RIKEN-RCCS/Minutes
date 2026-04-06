@@ -6,8 +6,8 @@
 
 本システムの利用には以下が必要です。
 
-- 音声データからの文字起こしに必要なライブラリ等を格納した Singularity コンテナ
-- Speech-to-Text モデルの実行に必要な NVIDIA GPU
+- AIモデルの実行に必要な NVIDIA GPU
+- 音声データからの文字起こし、要約に必要なライブラリ等を格納した Singularity コンテナ
 - 議事録生成に必要な LLM（[Claude CLI](https://claude.ai/code) またはローカル LLM）
 - プロジェクト情報を記述した Markdown 形式のファイル（`docs/project.md`）
 
