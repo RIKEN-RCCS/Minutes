@@ -214,6 +214,9 @@ def main():
                                         token=hf_token).to(device)
     original_waveform, sr = torchaudio.load(args.input_audio)
     diarization = pipeline({"waveform": original_waveform, "sample_rate": sr})
+    # 新しい pyannote は DiarizeOutput を返す。Annotation を取り出す。
+    if not hasattr(diarization, "itertracks"):
+        diarization = diarization.diarization
 
     processor, model = load_model(args.local, hf_token, device)
     segments = transcribe_chunks(chunks, processor, model, device)
