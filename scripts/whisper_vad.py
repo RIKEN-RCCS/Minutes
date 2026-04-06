@@ -18,7 +18,6 @@ MODEL_LOCAL = "./whisper-large-v3-ja-final"
 
 TEMPERATURE = 0.2 # 0.6
 NUM_BEAMS = 10
-MAX_NEW_TOKENS = 440
 REPETITION_PENALTY = 1.2
 NO_REPEAT_NGRAM_SIZE = 3
 
@@ -123,7 +122,6 @@ def transcribe_chunks(chunks, processor, model, device):
                 return_timestamps=True,
                 temperature=TEMPERATURE,
                 do_sample=TEMPERATURE > 0,
-                max_new_tokens=MAX_NEW_TOKENS,
                 num_beams=NUM_BEAMS,
                 repetition_penalty=REPETITION_PENALTY,
                 no_repeat_ngram_size=NO_REPEAT_NGRAM_SIZE,
