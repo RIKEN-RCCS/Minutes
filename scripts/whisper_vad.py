@@ -200,7 +200,12 @@ def main():
     parser.add_argument("--local", action="store_true", help=f"Use local fine-tuned model ({MODEL_LOCAL})")
     args = parser.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print(f"[INFO] GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        print("[WARNING] CUDA not available, falling back to CPU (this will be very slow)")
+        device = torch.device("cpu")
     hf_token = os.getenv("HUGGING_FACE_TOKEN")
 
     processed_waveform, sample_rate, speech_timestamps = remove_silence(args.input_audio, sampling_rate=16000)
