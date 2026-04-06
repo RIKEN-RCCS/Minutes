@@ -8,8 +8,6 @@ from silero_vad import collect_chunks, get_speech_timestamps, load_silero_vad, r
 from transformers import WhisperProcessor, WhisperForConditionalGeneration
 import numpy as np
 
-from df.enhance import enhance, init_df, load_audio, save_audio
-
 THRESHOLD = 0.05
 MIN_SPEECH_DURATION_MS = 500 # 250
 MIN_SILENCE_DURATION_MS = 300 # 100
@@ -33,40 +31,6 @@ INITIAL_PROMPT = (
     "ワーキンググループ、アーキテクチャ、フラッグシップ、生成AI、知識蒸留。"
     "話者の発言を正確に書き起こしてください。"
 )  # 222 tokens (上限 224)
-
-
-def apply_deepfilternet(audio_file, sample_rate=16000, chunk_duration_sec=600):
-    """
-    DeepFilterNet noise suppression processing with chunking support for long audio files
-
-    Parameters:
-        audio_file (str): Input audio file (.wav)
-        sample_rate (int): Target sample rate for resampling (default: 16kHz)
-        chunk_duration_sec (int): Chunk duration (in seconds) (default: 600sec. = 10min.)
-
-    Returns:
-        str: File path to save the denoised audio
-    """
-    print("[INFO] Applying DeepFilterNet3 noise suppression with chunking...")
-    model, df_state, _ = init_df()
-
-    waveform, _ = load_audio(audio_file, sr=df_state.sr())
-
-    chunk_size = sample_rate * chunk_duration_sec
-    total_frames = waveform.shape[1]
-
-    enhanced_chunks = []
-    with torch.no_grad():
-        for i in range(0, total_frames, chunk_size):
-            chunk = waveform[:, i:i + chunk_size].contiguous()
-            enhanced_chunk = enhance(model, df_state, chunk)
-            enhanced_chunks.append(enhanced_chunk)
-
-    enhanced_audio = torch.cat(enhanced_chunks, dim=-1)
-
-    enhanced_path = "denoised.wav"
-    save_audio(enhanced_path, enhanced_audio, df_state.sr())
-    return enhanced_path
 
 
 def remove_silence(audio_file, sampling_rate):
@@ -234,17 +198,12 @@ def main():
     parser.add_argument("input_audio", help="Input audio file path (e.g., meeting.wav)")
     parser.add_argument("output_text", help="Output text file path (e.g., result.txt)")
     parser.add_argument("--local", action="store_true", help=f"Use local fine-tuned model ({MODEL_LOCAL})")
-    parser.add_argument("--denoise", action="store_true", help="Apply DeepFilterNet3 noise suppression before VAD")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     hf_token = os.getenv("HUGGING_FACE_TOKEN")
 
-    audio_file = args.input_audio
-    if args.denoise:
-        audio_file = apply_deepfilternet(audio_file, sample_rate=16000)
-
-    processed_waveform, sample_rate, speech_timestamps = remove_silence(audio_file, sampling_rate=16000)
+    processed_waveform, sample_rate, speech_timestamps = remove_silence(args.input_audio, sampling_rate=16000)
     chunks = chunk_audio(processed_waveform, sample_rate, speech_timestamps, chunk_length_sec=CHUNK_LENGTH)
 
     print("[INFO] Running speaker diarization (PyAnnote)...")
