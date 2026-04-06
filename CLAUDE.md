@@ -45,9 +45,11 @@ Minutes/
 1. **入力**: `data/input/`ディレクトリにオーディオ/ビデオファイルを配置
 2. **書き起こし・議事録生成**: SLURMジョブを実行（書き起こし完了後、自動で議事録も生成）
    ```bash
-   bash scripts/trans.sh data/input/meeting.mp4 [--skip 30]
+   bash scripts/trans.sh data/input/meeting.mp4 [--skip 30] [--url http://ng-dgx-s-00:8000/v1]
    ```
    ログインノードから実行。パーティションを自動選択（ai-l40s優先、次いでqc-gh200）。
+   - `--url` を省略した場合は `http://localhost:8000/v1`（または環境変数 `GENERATE_MINUTES_URL`）を使用
+   - 議事録生成には `google/gemma-4-26B-A4B-it` をデフォルトモデルとして使用
    - 書き起こし出力: `data/input/meeting.md`（入力ファイルと同じディレクトリに同名で生成）
    - 議事録出力: `minutes/YYYY-MM-DD-timestamp-file-md-minutes.md`
 

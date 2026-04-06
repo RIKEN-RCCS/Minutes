@@ -3,11 +3,13 @@
 #SBATCH --time=24:00:00
 
 # 複数ファイルを1ジョブで順次処理する
-# Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS]
+# Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL]
 #
 # --skip SECONDS を付けると全ファイルの冒頭をスキップ
+# --url URL      議事録生成に使うローカルLLMのエンドポイント（デフォルト: http://localhost:8000/v1）
 # 例: bash trans.sh a.mp4 b.mp4 c.mp4
 #     bash trans.sh a.mp4 b.mp4 --skip 30
+#     bash trans.sh a.mp4 --url http://ng-dgx-s-00:8000/v1
 #
 # パーティション選択: ai-l40s に空きがあれば優先、次に qc-gh200、
 # どちらも混雑していれば ai-l40s に投入する。
@@ -18,7 +20,8 @@
 # 回避策: 投入時に --export で SCRIPT_DIR を渡し、ジョブ側ではそれを優先使用する。
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 WHISPER_VAD="$SCRIPT_DIR/whisper_vad.py"
-GENERATE_MINUTES="$SCRIPT_DIR/generate_minutes.py"
+GENERATE_MINUTES="$SCRIPT_DIR/generate_minutes_local.py"
+GENERATE_MINUTES_MODEL="google/gemma-4-26B-A4B-it"
 
 # ============================================================
 # 投入モード: SLURM外（ログインノード等）から実行された場合
@@ -71,18 +74,20 @@ fi
 
 export SINGULARITY_BIND=/lvs0
 
-# 引数パース: --skip N を抽出し、残りをファイルリストとする
+# 引数パース: --skip N / --url URL を抽出し、残りをファイルリストとする
 SKIP_SECONDS=""
+LLM_URL="${GENERATE_MINUTES_URL:-http://localhost:8000/v1}"
 FILES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip) SKIP_SECONDS="$2"; shift 2 ;;
+    --url)  LLM_URL="$2"; shift 2 ;;
     *)      FILES+=("$1"); shift ;;
   esac
 done
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
-  echo "Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS]"
+  echo "Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL]"
   exit 1
 fi
 
@@ -134,7 +139,12 @@ EOF
     echo ""
     echo "[INFO] 議事録を生成中: $BASENAME.md"
     MINUTES_DIR=$(dirname "$INPUT_ABS")/../../minutes
-    "$PYTHON3" "$GENERATE_MINUTES" "$BASENAME.md" --output "$MINUTES_DIR"
+    "$PYTHON3" "$GENERATE_MINUTES" "$BASENAME.md" \
+      --model "$GENERATE_MINUTES_MODEL" \
+      --url "$LLM_URL" \
+      --output "$MINUTES_DIR" \
+      --multi-stage --chunk-minutes 10 \
+      --think --temperature 1.0 --max-tokens 16384
     if [[ $? -eq 0 ]]; then
       echo "[INFO] 議事録生成完了"
     else

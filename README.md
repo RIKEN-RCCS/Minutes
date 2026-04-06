@@ -78,9 +78,12 @@ Minutes/
 bash scripts/trans.sh data/input/meeting.mp4
 # 冒頭 30 秒をスキップする場合
 bash scripts/trans.sh data/input/meeting.mp4 --skip 30
+# ローカル LLM エンドポイントを指定する場合
+bash scripts/trans.sh data/input/meeting.mp4 --url http://ng-dgx-s-00:8000/v1
 ```
 
-書き起こし完了後、自動で議事録も生成されます。
+書き起こし完了後、`generate_minutes_local.py`（`google/gemma-4-26B-A4B-it`）で自動的に議事録が生成されます。
+`--url` を省略した場合は `http://localhost:8000/v1`（または環境変数 `GENERATE_MINUTES_URL`）を使用します。
 
 `sinfo` でパーティションの空き状況を確認し、以下の優先順位でジョブを投入します。
 
