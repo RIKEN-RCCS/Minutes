@@ -115,7 +115,7 @@ def transcribe_chunks(chunks, processor, model, device):
             task="transcribe",
             initial_prompt=INITIAL_PROMPT,
         )
-        input_features = inputs.input_features.to(device)
+        input_features = inputs.input_features.to(device, dtype=model.dtype)
 
         with torch.no_grad():
             generated_ids = model.generate(
