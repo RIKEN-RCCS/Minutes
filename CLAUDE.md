@@ -36,7 +36,7 @@ Minutes/
 4. **話者識別**: PyAnnoteが話者を識別
 5. **音声書き起こし**: Whisper large-v3（ローカルまたはリモート）が音声を書き起こす
 6. **出力整形**: 話者セグメント化されたMarkdown出力を作成
-7. **議事録生成**: Claude CLIが文字起こしを構造化された議事録に変換
+7. **議事録生成**: LLM（Claude CLI またはローカル LLM）が文字起こしを構造化された議事録に変換
 
 ## ワークフロー
 
@@ -103,7 +103,7 @@ MODEL_LOCAL = "./whisper-large-v3-ja-final"  # ローカルファインチュー
 
 ## 議事録フォーマット
 
-文字起こしからClaude CLIを使用して構造化された議事録を生成します：
+文字起こしからLLMを使用して構造化された議事録を生成します：
 
 1. **決定事項** - 会議で決定された事項
 2. **アクションアイテム** - 担当者が割り当てられたタスク
@@ -115,12 +115,21 @@ MODEL_LOCAL = "./whisper-large-v3-ja-final"  # ローカルファインチュー
 - 推測を含めない
 - 確定した発言者名を使用する
 
-## LLM（Claude CLI）
+## LLM による議事録生成
 
-文字起こし結果から議事録を作成するにはClaude CLIを利用する。
+議事録生成には以下の2つの方法がある。
+
+### Claude CLI（generate_minutes.py）
+
 `generate_minutes.py`が`claude -p`コマンドを呼び出す。
 このCLAUDE.mdのプロジェクト背景・用語集はClaude CLIが自動で読み込むため、
 プロンプトへの再記述は不要。
+
+### ローカル LLM（generate_minutes_local.py）
+
+vLLM サーバー上のローカル LLM を使う方法。外部サービス不要でクローズド環境でも動作する。
+gemma-4-26B-A4B-it（MoE）を用いると Claude Sonnet 相当の品質が得られることを確認済み。
+詳細は「ローカルLLM議事録生成」セクションを参照。
 
 ## ローカルLLM議事録生成（generate_minutes_local.py）
 
