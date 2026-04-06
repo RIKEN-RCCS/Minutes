@@ -96,8 +96,8 @@ def load_model(use_local, hf_token, device):
         model = WhisperForConditionalGeneration.from_pretrained(MODEL_LOCAL).to(device)
     else:
         print(f"[INFO] Loading Whisper model from Hugging Face: {MODEL_REMOTE}")
-        processor = WhisperProcessor.from_pretrained(MODEL_REMOTE, use_auth_token=hf_token, language="ja", task="transcribe")
-        model = WhisperForConditionalGeneration.from_pretrained(MODEL_REMOTE, use_auth_token=hf_token).to(device)
+        processor = WhisperProcessor.from_pretrained(MODEL_REMOTE, token=hf_token, language="ja", task="transcribe")
+        model = WhisperForConditionalGeneration.from_pretrained(MODEL_REMOTE, token=hf_token).to(device)
     model.eval()
     return processor, model
 
@@ -208,7 +208,7 @@ def main():
 
     print("[INFO] Running speaker diarization (PyAnnote)...")
     pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1",
-                                        use_auth_token=hf_token).to(device)
+                                        token=hf_token).to(device)
     original_waveform, sr = torchaudio.load(args.input_audio)
     diarization = pipeline({"waveform": original_waveform, "sample_rate": sr})
 
