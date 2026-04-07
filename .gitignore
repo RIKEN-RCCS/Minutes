@@ -1,0 +1,30 @@
+# 環境変数・シークレット
+.env
+.server_info.json
+
+# 音声ファイル・生成物
+data/
+meetings/
+minutes/
+model_compare/
+*.wav
+*.mp3
+*.mp4
+*.m4a
+*.aac
+*.flac
+*.ogg
+
+# SLURMログ
+slurm-*.out
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv*/
+dist/
+build/
+
+# Whisper一時ファイル
+lib_shim/

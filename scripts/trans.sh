@@ -3,13 +3,15 @@
 #SBATCH --time=24:00:00
 
 # 複数ファイルを1ジョブで順次処理する
-# Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL]
+# Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL] [--minutes-only]
 #
-# --skip SECONDS を付けると全ファイルの冒頭をスキップ
-# --url URL      議事録生成に使うローカルLLMのエンドポイント（デフォルト: http://localhost:8000/v1）
+# --skip SECONDS  全ファイルの冒頭をスキップ
+# --url URL       議事録生成に使うローカルLLMのエンドポイント（デフォルト: http://localhost:8000/v1）
+# --minutes-only  書き起こしをスキップし、既存の .md から議事録生成のみ実行
 # 例: bash trans.sh a.mp4 b.mp4 c.mp4
 #     bash trans.sh a.mp4 b.mp4 --skip 30
 #     bash trans.sh a.mp4 --url http://ng-dgx-s-00:8000/v1
+#     bash trans.sh a.mp4 --minutes-only --url http://ng-dgx-s-00:8000/v1
 #
 # パーティション選択: ai-l40s に空きがあれば優先、次に qc-gh200、
 # どちらも混雑していれば ai-l40s に投入する。
@@ -33,14 +35,18 @@ if [[ -z "${SLURM_JOB_ID}" ]]; then
     sinfo -p "$1" --noheader -o "%t" 2>/dev/null | grep -qE "^(idle|mix)$"
   }
 
-  if has_available_nodes "ai-l40s"; then
+  if has_available_nodes "ng-dgx-s"; then
+    PARTITION="ng-dgx-s"
+    EXTRA_OPTS=""
+    echo "[INFO] ng-dgx-s に空きあり → ng-dgx-s に投入します"
+  elif has_available_nodes "ai-l40s"; then
     PARTITION="ai-l40s"
     EXTRA_OPTS="--gpus=1"
     echo "[INFO] ai-l40s に空きあり → ai-l40s に投入します"
   elif has_available_nodes "qc-gh200"; then
     PARTITION="qc-gh200"
     EXTRA_OPTS=""
-    echo "[INFO] ai-l40s は空きなし、qc-gh200 に空きあり → qc-gh200 に投入します"
+    echo "[INFO] qc-gh200 に空きあり → qc-gh200 に投入します"
   else
     PARTITION="ai-l40s"
     EXTRA_OPTS="--gpus=1"
@@ -74,20 +80,22 @@ fi
 
 export SINGULARITY_BIND=/lvs0
 
-# 引数パース: --skip N / --url URL を抽出し、残りをファイルリストとする
+# 引数パース: --skip N / --url URL / --minutes-only を抽出し、残りをファイルリストとする
 SKIP_SECONDS=""
 LLM_URL="${GENERATE_MINUTES_URL:-http://localhost:8000/v1}"
+MINUTES_ONLY=0
 FILES=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skip) SKIP_SECONDS="$2"; shift 2 ;;
-    --url)  LLM_URL="$2"; shift 2 ;;
-    *)      FILES+=("$1"); shift ;;
+    --skip)         SKIP_SECONDS="$2"; shift 2 ;;
+    --url)          LLM_URL="$2"; shift 2 ;;
+    --minutes-only) MINUTES_ONLY=1; shift ;;
+    *)              FILES+=("$1"); shift ;;
   esac
 done
 
 if [[ ${#FILES[@]} -eq 0 ]]; then
-  echo "Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL]"
+  echo "Usage: bash trans.sh file1.mp4 [file2.mp4 ...] [--skip SECONDS] [--url URL] [--minutes-only]"
   exit 1
 fi
 
@@ -114,9 +122,11 @@ for INPUT_FILE in "${FILES[@]}"; do
   echo "処理開始: $INPUT_ABS"
   echo "=============================="
 
-  cat << EOF > "$WORKDIR/run.sh"
+  if [[ $MINUTES_ONLY -eq 0 ]]; then
+    cat << EOF > "$WORKDIR/run.sh"
+. /.venv/bin/activate
 export HUGGING_FACE_TOKEN="${HUGGING_FACE_TOKEN:?HUGGING_FACE_TOKEN 環境変数が設定されていません}"
-export HF_HOME="$WORKDIR/hf_cache"
+export HF_HOME="${HF_HOME:-$WORKDIR/hf_cache}"
 
 if [ -n "$SKIP_SECONDS" ]; then
   ffmpeg -y -ss $SKIP_SECONDS -i $INPUT_ABS -c copy $TMP_FILE
@@ -128,32 +138,40 @@ ffprobe -v error -show_format -show_streams -i $WAV_FILE
 python3 $WHISPER_VAD $WAV_FILE $BASENAME.md
 EOF
 
-  time singularity run --nv "$SIFFILE1" sh "$WORKDIR/run.sh"
-  STATUS=$?
+    time singularity run --nv "$SIFFILE1" sh "$WORKDIR/run.sh"
+    STATUS=$?
 
-  rm -f "$TMP_FILE" "$WAV_FILE" "$WORKDIR/run.sh"
+    rm -f "$TMP_FILE" "$WAV_FILE" "$WORKDIR/run.sh"
 
-  if [[ $STATUS -eq 0 ]]; then
-    echo "完了: $BASENAME.md"
-
-    echo ""
-    echo "[INFO] 議事録を生成中: $BASENAME.md"
-    MINUTES_DIR=$(dirname "$INPUT_ABS")/../../minutes
-    "$PYTHON3" "$GENERATE_MINUTES" "$BASENAME.md" \
-      --model "$GENERATE_MINUTES_MODEL" \
-      --url "$LLM_URL" \
-      --output "$MINUTES_DIR" \
-      --multi-stage --chunk-minutes 10 \
-      --think --temperature 1.0 --max-tokens 16384
-    if [[ $? -eq 0 ]]; then
-      echo "[INFO] 議事録生成完了"
-    else
-      echo "[WARNING] 議事録生成に失敗しました（書き起こしは保存済み）"
+    if [[ $STATUS -ne 0 ]]; then
+      echo "失敗 (exit=$STATUS): $INPUT_ABS"
+      FAIL=$((FAIL + 1))
+      continue
     fi
+    echo "完了: $BASENAME.md"
+  else
+    if [[ ! -f "$BASENAME.md" ]]; then
+      echo "エラー: 書き起こしファイルが見つかりません: $BASENAME.md"
+      FAIL=$((FAIL + 1))
+      continue
+    fi
+    echo "[INFO] --minutes-only: 書き起こしをスキップ ($BASENAME.md)"
+  fi
 
+  echo ""
+  echo "[INFO] 議事録を生成中: $BASENAME.md"
+  MINUTES_DIR=$(dirname "$INPUT_ABS")/../../minutes
+  "$PYTHON3" "$GENERATE_MINUTES" "$BASENAME.md" \
+    --model "$GENERATE_MINUTES_MODEL" \
+    --url "$LLM_URL" \
+    --output "$MINUTES_DIR" \
+    --multi-stage --chunk-minutes 10 \
+    --think --temperature 1.0 --max-tokens 16384
+  if [[ $? -eq 0 ]]; then
+    echo "[INFO] 議事録生成完了"
     SUCCESS=$((SUCCESS + 1))
   else
-    echo "失敗 (exit=$STATUS): $INPUT_ABS"
+    echo "[WARNING] 議事録生成に失敗しました（書き起こしは保存済み）"
     FAIL=$((FAIL + 1))
   fi
 done
