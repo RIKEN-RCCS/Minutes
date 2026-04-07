@@ -16,7 +16,7 @@
 RIKEN R-CCS Cloud のユーザーであれば、以下の資源を利用できます。
 
 - Singularity コンテナのレシピは [RIKEN-RCCS GitHub](https://github.com/RIKEN-RCCS/singularity_defpack/tree/main/gpu_nvidia/whisper) で公開されています。
-- `trans.sh` が GPU を搭載した計算ノード（L40S、GH200）を自動選択してジョブを投入します。
+- `trans.sh` が GPU を搭載した計算ノード（GB10, L40S, GH200）を自動選択してジョブを投入します。
 
 ---
 
