@@ -14,6 +14,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 import requests
@@ -140,23 +141,29 @@ python3 {SCRIPT_DIR}/whisper_vad.py {wav_path} {transcript_path}
     env = os.environ.copy()
     env["SINGULARITY_BIND"] = "/lvs0"
 
+    # stdout と stderr をマージしてリアルタイムにログ出力する
+    output_lines = []
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["singularity", "run", "--nv", str(SIF_FILE), "sh", str(run_sh)],
             env=env,
-            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=7200,  # 2時間でタイムアウト
         )
-        if result.returncode != 0:
-            logger.error("=== STDOUT ===\n%s", result.stdout[-3000:])
-            logger.error("=== STDERR ===\n%s", result.stderr[-3000:])
+        for line in proc.stdout:
+            line = line.rstrip()
+            logger.info("[whisper] %s", line)
+            output_lines.append(line)
+        proc.wait(timeout=7200)
+
+        if proc.returncode != 0:
+            tail = "\n".join(output_lines[-50:])
             raise RuntimeError(
-                f"Whisperエラー (exit={result.returncode}):\n"
-                f"*STDERR末尾:*\n```{result.stderr[-1500:]}```\n"
-                f"*STDOUT末尾:*\n```{result.stdout[-1000:]}```"
+                f"Whisperエラー (exit={proc.returncode}):\n"
+                f"```{tail[-2000:]}```"
             )
-        logger.info(result.stdout[-500:])
     finally:
         run_sh.unlink(missing_ok=True)
         wav_path = audio_path.with_suffix(".wav")
@@ -165,12 +172,16 @@ python3 {SCRIPT_DIR}/whisper_vad.py {wav_path} {transcript_path}
     return transcript_path
 
 
-def run_minutes(transcript_path):
-    """generate_minutes_local.py をコンテナ外のPythonで実行し、議事録パスを返す。"""
+def run_minutes(transcript_path, client, channel_id, thread_ts):
+    """generate_minutes_local.py をコンテナ外のPythonで実行し、議事録パスを返す。
+
+    stdout をリアルタイムにログ出力しつつ [INFO] 行をパースして
+    Stage 進捗を Slack スレッドに投稿する。
+    """
     minutes_dir = Path(AUDIO_SAVE_DIR) / "minutes"
     minutes_dir.mkdir(parents=True, exist_ok=True)
 
-    result = subprocess.run(
+    proc = subprocess.Popen(
         [sys.executable, str(SCRIPT_DIR / "generate_minutes_local.py"),
          str(transcript_path),
          "--model", VLLM_MODEL,
@@ -178,25 +189,90 @@ def run_minutes(transcript_path):
          "--output", str(minutes_dir),
          "--multi-stage", "--chunk-minutes", "10",
          "--max-tokens", "16384"],
-        capture_output=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=7200,  # 2時間でタイムアウト
     )
-    if result.returncode != 0:
+
+    # stderr は別スレッドで読み、logger.warning に流す
+    stderr_lines = []
+
+    def _read_stderr():
+        for line in proc.stderr:
+            line = line.rstrip()
+            logger.warning("[minutes] %s", line)
+            stderr_lines.append(line)
+
+    stderr_thread = threading.Thread(target=_read_stderr, daemon=True)
+    stderr_thread.start()
+
+    # stdout をリアルタイムに処理
+    minutes_path = None
+    total_chunks = None
+    posted_milestones = set()  # 投稿済みの進捗マイルストーン（%）
+
+    for raw_line in proc.stdout:
+        line = raw_line.rstrip()
+        logger.info("[minutes] %s", line)
+
+        # Stage 1 開始: チャンク数を把握
+        if "チャンクに分割" in line:
+            # "[INFO] マルチステージモード: N チャンクに分割（各約 M 分）"
+            try:
+                total_chunks = int(line.split(":")[1].strip().split()[0])
+            except Exception:
+                pass
+            _post(client, channel_id, thread_ts,
+                  f"Stage 1 開始: 文字起こしを {total_chunks} チャンクに分割して抽出中...")
+
+        # Stage 1 チャンク完了: 25% / 50% / 75% / 100% でSlack投稿
+        elif "抽出完了" in line and total_chunks:
+            # "[INFO] チャンク N/total 抽出完了（M 字）"
+            try:
+                frac = line.split("チャンク")[1].split("抽出完了")[0].strip()
+                current = int(frac.split("/")[0])
+                pct = current * 100 // total_chunks
+                milestone = (pct // 25) * 25  # 25, 50, 75, 100
+                if milestone > 0 and milestone not in posted_milestones:
+                    posted_milestones.add(milestone)
+                    _post(client, channel_id, thread_ts,
+                          f"Stage 1: チャンク抽出 {milestone}% 完了 ({current}/{total_chunks})")
+            except Exception:
+                pass
+
+        # Stage 2 開始
+        elif "議事録を統合生成中" in line:
+            _post(client, channel_id, thread_ts,
+                  "Stage 2: 議事内容を統合生成中...")
+
+        # Stage 3 開始
+        elif "決定事項・アクションアイテムを生成中" in line:
+            _post(client, channel_id, thread_ts,
+                  "Stage 3: 決定事項・アクションアイテムを抽出中...")
+
+        # 完了行からパスを取得
+        elif line.startswith("[完了]"):
+            try:
+                minutes_path = Path(line.split(None, 1)[1].strip())
+            except Exception:
+                pass
+
+    proc.wait(timeout=7200)
+    stderr_thread.join()
+
+    if proc.returncode != 0:
+        tail = "\n".join(stderr_lines[-30:])
         raise RuntimeError(
-            f"要約エラー (exit={result.returncode}):\n"
-            f"```{result.stderr[-2000:]}```"
+            f"要約エラー (exit={proc.returncode}):\n"
+            f"```{tail[-2000:]}```"
         )
 
-    # stdout から "[完了] /path/to/file" を探す
-    for line in result.stdout.splitlines():
-        if line.startswith("[完了]"):
-            minutes_path = Path(line.split(None, 1)[1].strip())
-            if minutes_path.exists():
-                return minutes_path
+    if minutes_path is None or not minutes_path.exists():
+        raise RuntimeError("議事録ファイルのパスが取得できませんでした。\n"
+                           f"stderr: {chr(10).join(stderr_lines[-10:])}")
 
-    raise RuntimeError("議事録ファイルのパスが取得できませんでした。\n"
-                       f"stdout: {result.stdout[-500:]}")
+    return minutes_path
 
 
 def run_pipeline(client, channel_id, filename, thread_ts):
@@ -218,7 +294,7 @@ def run_pipeline(client, channel_id, filename, thread_ts):
               f"要約を開始します（数十分かかる場合があります）...")
 
         # 3. LLM要約
-        minutes_path = run_minutes(transcript_path)
+        minutes_path = run_minutes(transcript_path, client, channel_id, thread_ts)
 
         # 議事録ファイルをスレッドにアップロード
         client.files_upload_v2(

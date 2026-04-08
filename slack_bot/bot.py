@@ -1,5 +1,7 @@
 import logging
+import os
 import signal
+import sys
 import threading
 import time
 
@@ -15,11 +17,57 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# バックグラウンド実行時に SIGTTIN で停止しないよう stdin を閉じる
+sys.stdin = open(os.devnull, "r")
+
 app = App(token=SLACK_BOT_TOKEN)
 
 # 同時実行中のジョブを管理するセマフォ（同時に何件でも受け付けるが、状況把握のため追跡）
 _active_jobs: dict[str, str] = {}  # thread_ts → filename
 _jobs_lock = threading.Lock()
+
+
+@app.command("/delete")
+def handle_delete(ack, body, client):
+    filename = body.get("text", "").strip()
+    channel_id = body["channel_id"]
+
+    if not filename:
+        ack("使い方: `/delete <ファイル名>`")
+        return
+
+    # Bold書式のアスタリスクを除去（例: *foo.md* → foo.md）
+    filename = filename.strip("*")
+    # 拡張子がなければ .md を付加
+    if "." not in filename:
+        filename += ".md"
+
+    ack(f"`{filename}` を検索して削除します...")
+
+    response = client.files_list(channel=channel_id, types="all")
+    files = response.get("files", [])
+    matched = [f for f in files if f.get("name") == filename]
+
+    if not matched:
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"`{filename}` がこのチャンネルに見つかりませんでした。",
+        )
+        return
+
+    file_id = matched[0]["id"]
+    try:
+        client.files_delete(file=file_id)
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"`{filename}` を削除しました。",
+        )
+    except Exception as e:
+        logger.error("ファイル削除に失敗: %s", e)
+        client.chat_postMessage(
+            channel=channel_id,
+            text=f"`{filename}` の削除に失敗しました: {e}",
+        )
 
 
 @app.command("/transcribe")
