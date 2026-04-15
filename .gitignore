@@ -17,6 +17,7 @@ model_compare/
 
 # SLURMログ
 slurm-*.out
+logs/
 
 # Python
 __pycache__/
@@ -25,6 +26,7 @@ __pycache__/
 .venv*/
 dist/
 build/
+slack_bot/bot.sh
 
 # Whisper一時ファイル
 lib_shim/

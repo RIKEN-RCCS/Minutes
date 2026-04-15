@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import requests
@@ -48,14 +49,27 @@ def _post(client, channel_id, thread_ts, text):
     client.chat_postMessage(channel=channel_id, thread_ts=thread_ts, text=text)
 
 
-def download_audio(client, channel_id, filename):
-    """チャンネル内のファイルを検索してダウンロードし、保存パスを返す。"""
-    response = client.files_list(channel=channel_id, types="all")
-    files = response.get("files", [])
-    logger.info(f"files_list: {len(files)} 件取得 (channel={channel_id})")
-    for f in files:
-        logger.info(f"  - name={f.get('name')!r} id={f.get('id')} created={f.get('created')}")
-    matched = [f for f in files if f.get("name") == filename]
+def download_audio(client, channel_id, filename,
+                   max_retries: int = 5, retry_delay: float = 5.0):
+    """チャンネル内のファイルを検索してダウンロードし、保存パスを返す。
+
+    アップロード直後は files_list に反映されない場合があるため、
+    ファイルが見つからない間は max_retries 回まで retry_delay 秒待ってリトライする。
+    """
+    matched = []
+    for attempt in range(1, max_retries + 1):
+        response = client.files_list(channel=channel_id, types="all")
+        files = response.get("files", [])
+        logger.info(f"files_list (試行 {attempt}/{max_retries}): {len(files)} 件取得 (channel={channel_id})")
+        for f in files:
+            logger.info(f"  - name={f.get('name')!r} id={f.get('id')} created={f.get('created')}")
+        matched = [f for f in files if f.get("name") == filename]
+        if matched:
+            break
+        if attempt < max_retries:
+            logger.warning(f"`{filename}` が見つかりません。{retry_delay:.0f} 秒後にリトライします... ({attempt}/{max_retries})")
+            time.sleep(retry_delay)
+
     if not matched:
         raise FileNotFoundError(f"`{filename}` がチャンネルに見つかりませんでした。")
 
@@ -188,7 +202,7 @@ def run_minutes(transcript_path, client, channel_id, thread_ts):
          "--url", VLLM_API_BASE,
          "--output", str(minutes_dir),
          "--multi-stage", "--chunk-minutes", "10",
-         "--max-tokens", "16384"],
+         "--max-tokens", "4096"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

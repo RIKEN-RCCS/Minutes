@@ -15,7 +15,9 @@ MIN_SPEECH_DURATION_MS = 500 # 250
 MIN_SILENCE_DURATION_MS = 300 # 100
 SPEECH_PAD_MS = 250 # 120
 CHUNK_LENGTH = 30 # time in second
-MODEL_REMOTE = "openai/whisper-large-v3"
+#MODEL_REMOTE = "kotoba-tech/kotoba-whisper-v2.2"
+#MODEL_REMOTE = "openai/whisper-large-v3"
+MODEL_REMOTE = "openai/whisper-large-v3-turbo"
 MODEL_LOCAL = "./whisper-large-v3-ja-final"
 
 TEMPERATURE = 0.2 # 0.6
