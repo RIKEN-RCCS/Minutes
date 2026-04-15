@@ -202,7 +202,7 @@ def run_minutes(transcript_path, client, channel_id, thread_ts):
          "--url", VLLM_API_BASE,
          "--output", str(minutes_dir),
          "--multi-stage", "--chunk-minutes", "10",
-         "--max-tokens", "4096"],
+         "--max-tokens", "16384"],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
