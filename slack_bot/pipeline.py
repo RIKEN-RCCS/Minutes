@@ -323,6 +323,7 @@ def run_pipeline(client, channel_id, filename, thread_ts):
     except Exception as e:
         logger.exception("Pipeline failed")
         _post(client, channel_id, thread_ts, f"エラーが発生しました:\n{e}")
+        raise
     else:
         # 正常完了時のみ削除
         if audio_path:
